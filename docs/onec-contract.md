@@ -18,8 +18,8 @@
 | `GET doctors` | `DoctorsGET` | `branch`, `date` (необяз.) | **массив** `[{"id","full_name","specialty_name"}]` | HTTP 500 `{"detail":"…"}` |
 | `GET services` | `ServicesGET` | `doctor_id` | **массив** `[{"id","name","price"}]` | в массиве `{"id":"empty",…}` — нет услуг; `{"id":"error","name":"ОШИБКА 1С: …"}` |
 | `GET schedule` | `ScheduleGET` | `doctor_id`, `branch`, `start_date`+`end_date` **или** `date` (`YYYY-MM-DD`) | `{"status":"success","schedule":{"YYYY-MM-DD":["HH:MM",…]}}` | HTTP 500 `{"error":"…"}` |
-| `POST book` | `BookPOST` | тело ниже | `{"status":"success","appointment_id":"<UUID заявки>"}` | HTTP 200 `{"status":"error","error":"…"}` |
-| `POST reschedule` | `ReschedulePOST` | тело `book` + `old_appointment_id` | `{"status":"success","appointment_id":"<UUID>"}` | HTTP 200 `{"status":"error","error":"…"}` |
+| `POST book` | `BookPOST` | тело ниже | `{"status":"success","appointment_id","patient_id","patient","medical_card"}` | HTTP 200 `{"status":"error","code":"…","error":"…"}` |
+| `POST reschedule` | `ReschedulePOST` | тело `book` + `old_appointment_id` | как `book`; `appointment_id` — та же заявка | HTTP 200 `{"status":"error","code":"…","error":"…"}` |
 | `POST cancel` | `CancelPOST` | `{"appointment_id"}` | `{"status":"success"}` | HTTP 200 `{"status":"error","error":"…"}` |
 | `POST update_note` | `UpdateNotePOST` | `{"appointment_id","note"}` | `{"status":"success"}` | HTTP 404 (нет заявки), HTTP 500 |
 
@@ -35,19 +35,33 @@
   "date": "YYYY-MM-DD",
   "time": "HH:MM",
   "patient": {"first_name": "…", "last_name": "…", "middle_name": "…",
-              "phone": "+7 (999) 123-45-67", "birth_date": "ДД.ММ.ГГГГ"},
+              "phone": "+7XXXXXXXXXX", "birth_date": "YYYY-MM-DD"},
   "platform": "telegram | max",
   "old_appointment_id": "<UUID> (только reschedule)"
 }
 ```
 
 Особенности, которые учитывают боты:
-- `appointment_id` — UUID документа «Заявка»; по нему приходят сигналы 1С.
-- Текст ошибки 1С не показывается пациенту: «занято» → код `SLOT_TAKEN`, остальное → `ONEC_ERROR`.
+- `appointment_id` — UUID документа «Заявка»; по нему приходят сигналы 1С. Перенос меняет ту же
+  заявку (время, врач, длительность по услуге, примечание «Перенос из Telegram/MAX»).
+- Этап 1 (specs/002-patient-emk, подробно — contracts/onec-book.md):
+  - пациент ищется по дате рождения и ФИО (без учёта регистра, «ё», пробелов), уточнение — по
+    цифрам телефона; не найден — создаётся штатно, телефон пишется в контактную информацию
+    (`7` / код / номер, представление `+7XXXXXXXXXX`); у пациента заявки обеспечивается основная
+    медкарта штатным `СоздатьМедкартуКлиента`;
+  - ответ: `patient_id` (UUID клиента), `patient` = `found` | `created`, `medical_card` =
+    `existing` | `created` | `missing` (запись создана, медкарту завести вручную — пометка в примечании);
+  - ошибки — машинный `code`: `SLOT_TAKEN`, `BAD_PHONE`, `BAD_BIRTH_DATE`, `BAD_REQUEST`,
+    `STATE_NOT_CONFIGURED` (нет состояния `BOT_*` — заявка не создаётся), `NOT_FOUND`, `INTERNAL`;
+    `error` — общий текст без ПДн, подробности — журнал регистрации 1С, событие `Бот.Запись`;
+  - 1С принимает и прежние форматы (`+7 (999) 123-45-67`, `ДД.ММ.ГГГГ`) — боты и 1С выкладываются
+    в любом порядке.
+- Боты не показывают текст 1С пациенту: сначала `code` (`SLOT_TAKEN`, `BAD_PHONE`,
+  `BAD_BIRTH_DATE` — пациент может исправить, остальное → `ONEC_ERROR`), без `code` — по тексту
+  («занято» → `SLOT_TAKEN`).
 - `doctors`/`services` отвечают массивом без обёртки; клиент ботов принимает и `{"data": […]}`.
 - Статус записи в 1С бот выставляет через `BOT_Первичка` / `BOT_Повторка` по названию услуги,
   `Ответственный` — пользователь `api_bot`. По этому признаку расширение отличает заявки бота.
-- Формат телефона и даты рождения меняется на этапе 1 (`+7XXXXXXXXXX`, `YYYY-MM-DD`).
 
 ## 2. 1С → боты (сигналы, расширение `onec/extension/`)
 

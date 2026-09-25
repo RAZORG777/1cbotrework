@@ -86,3 +86,23 @@ async def test_connect_error_retried_once(client):
     with pytest.raises(OneCUnavailable):
         await client.get_services()
     assert route.call_count == 2
+
+
+@respx.mock
+async def test_book_stage1_response_fields(client):
+    """Этап 1: ответ book с полями пациента и ошибка с машинным code принимаются как есть."""
+    respx.post(f"{BASE}/book").respond(
+        json={
+            "status": "success",
+            "appointment_id": "a1",
+            "patient_id": "p1",
+            "patient": "found",
+            "medical_card": "existing",
+        }
+    )
+    data = await client.create_booking({"doctor_id": "d"})
+    assert data["patient"] == "found" and data["medical_card"] == "existing"
+    respx.post(f"{BASE}/book").respond(
+        json={"status": "error", "code": "STATE_NOT_CONFIGURED", "error": "Запись не создана"}
+    )
+    assert (await client.create_booking({"doctor_id": "d"}))["code"] == "STATE_NOT_CONFIGURED"

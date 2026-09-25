@@ -900,7 +900,7 @@
                             try { if (typeof confetti === 'function') confetti(); } catch(e){} 
                             vibrate('success');
                             addToast('Успешно записано!', 'success'); showView('view-success'); 
-                        } else if (r.error === "SECOND_BOOKING_ERROR") { vibrate('error'); showCallCenterModal.value = true; } else { vibrate('error'); addToast(r.message || 'Не удалось записаться. Попробуйте позже.', 'error'); }
+                        } else if (r.error === "SECOND_BOOKING_ERROR") { vibrate('error'); showCallCenterModal.value = true; } else if (r.error === "BAD_PHONE" || r.error === "BAD_BIRTH_DATE") { vibrate('error'); errors[r.error === "BAD_PHONE" ? 'phone' : 'birth_date'] = r.message; addToast(r.message, 'error'); } else { vibrate('error'); addToast(r.message || 'Не удалось записаться. Попробуйте позже.', 'error'); }
                     })
                     .catch(e => { vibrate('error'); addToast('Сетевая ошибка', 'error'); }).finally(() => { isSubmitting.value = false; });
                 };

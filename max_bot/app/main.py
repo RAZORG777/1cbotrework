@@ -18,6 +18,8 @@ from .logging import setup_logging
 from .messenger import MaxMessenger
 from .models import STATUS_ACTIVE, Appointment
 from .onec_client import OneCClient
+from .patient import BAD_BIRTH_DATE, BAD_PHONE
+from .patient import MESSAGES as PATIENT_MESSAGES
 from .reminders import (
     make_scheduler,
     register_retention,
@@ -85,6 +87,13 @@ def create_app(
     async def validation_error(request: Request, exc: RequestValidationError):
         # Без эха входных данных: в них могут быть ПДн.
         fields = sorted({".".join(str(p) for p in e["loc"][1:]) for e in exc.errors()})
+        # Телефон и дату рождения пациент может исправить сам (contracts/onec-book.md).
+        for field, code in (("patient.phone", BAD_PHONE), ("patient.birth_date", BAD_BIRTH_DATE)):
+            if field in fields:
+                return JSONResponse(
+                    {"status": "error", "error": code, "message": PATIENT_MESSAGES[code]},
+                    status_code=422,
+                )
         return JSONResponse(
             {"status": "error", "error": "VALIDATION_ERROR", "fields": fields}, status_code=422
         )

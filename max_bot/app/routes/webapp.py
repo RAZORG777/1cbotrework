@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from fastapi.responses import FileResponse, JSONResponse
 from loguru import logger
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
@@ -17,6 +17,8 @@ from ..db import now_msk, session_scope
 from ..doctors_enricher import enrich_doctors_data
 from ..models import STATUS_ACTIVE, STATUS_CANCELLED, STATUS_FINISHED, Appointment
 from ..onec_client import OneCError
+from ..patient import MESSAGES as PATIENT_MESSAGES
+from ..patient import normalize_birth_date, normalize_phone
 from ..reminders import remove_reminders, schedule_reminders
 
 router = APIRouter()
@@ -31,6 +33,17 @@ class Patient(BaseModel):
     middle_name: str = Field("", max_length=100)
     phone: str = Field(min_length=1, max_length=32)
     birth_date: str = Field(min_length=1, max_length=10)
+
+    # Нормализация до 1С (contracts/onec-book.md): +7XXXXXXXXXX и YYYY-MM-DD.
+    @field_validator("phone")
+    @classmethod
+    def _phone(cls, value: str) -> str:
+        return normalize_phone(value)
+
+    @field_validator("birth_date")
+    @classmethod
+    def _birth_date(cls, value: str) -> str:
+        return normalize_birth_date(value)
 
 
 class BookingRequest(BaseModel):
@@ -59,17 +72,34 @@ def unavailable() -> JSONResponse:
     )
 
 
+# Коды 1С, которые пациент может исправить сам; остальные — общая ошибка записи.
+FIXABLE_CODES = {
+    "SLOT_TAKEN": "Извините, это время уже занято. Выберите другое.",
+    **PATIENT_MESSAGES,
+}
+GENERIC_REFUSAL = "Не удалось выполнить запись. Попробуйте позже или позвоните в клинику."
+
+
 def onec_refusal(response: dict, user_id: str) -> JSONResponse:
-    text = str(response.get("error") or "").lower()
-    if "занят" in text:
-        code, message = "SLOT_TAKEN", "Извините, это время уже занято. Выберите другое."
+    onec_code = str(response.get("code") or "")
+    if onec_code in FIXABLE_CODES:
+        code, message = onec_code, FIXABLE_CODES[onec_code]
+    elif not onec_code and "занят" in str(response.get("error") or "").lower():
+        # 1С без поля code (до этапа 1) — прежняя эвристика по тексту.
+        code, message = "SLOT_TAKEN", FIXABLE_CODES["SLOT_TAKEN"]
     else:
-        code, message = (
-            "ONEC_ERROR",
-            "Не удалось выполнить запись. Попробуйте позже или позвоните в клинику.",
-        )
-    logger.warning("1С отказала: user_id={} код={}", user_id, code)
+        code, message = "ONEC_ERROR", GENERIC_REFUSAL
+    logger.warning("1С отказала: user_id={} код={} код_1С={}", user_id, code, onec_code or "-")
     return error(code, message)
+
+
+def log_patient_result(response: dict, appointment_id: str) -> None:
+    """Итог поиска пациента и медкарты в 1С — без ПДн (FR-006, FR-015)."""
+    patient = response.get("patient") or "-"
+    card = response.get("medical_card") or "-"
+    logger.info("1С: appointment_id={} пациент={} медкарта={}", appointment_id, patient, card)
+    if card == "missing":
+        logger.warning("1С не создала медкарту: appointment_id={}", appointment_id)
 
 
 def branch_name(branch: str) -> str:
@@ -257,6 +287,7 @@ async def book(
     # Задания пишутся в ту же SQLite — только после фиксации транзакции.
     schedule_reminders(state.scheduler, appt, now)
     logger.info("Записан: user_id={} appointment_id={}", user.id, appointment_id)
+    log_patient_result(response, appointment_id)
 
     date_s = datetime.strptime(req.date, "%Y-%m-%d").strftime("%d.%m.%Y")
     fio = f"{req.patient.first_name} {req.patient.middle_name}".strip()
@@ -298,6 +329,7 @@ async def reschedule(
         return onec_refusal(response, user.id)
 
     new_id = str(response.get("appointment_id") or old_id)
+    log_patient_result(response, new_id)
     now = now_msk()
     with session_scope(state.session_factory) as session:
         appt = active_for(session, user.id)

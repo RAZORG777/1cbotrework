@@ -809,7 +809,7 @@
                             isRescheduling.value = false;  
                             try { if (typeof confetti === 'function') confetti(); } catch(e){} 
                             addToast('Успешно записано!', 'success'); showView('view-success'); 
-                        } else if (r.error === "SECOND_BOOKING_ERROR") { showCallCenterModal.value = true; } else { addToast(r.message || 'Не удалось записаться. Попробуйте позже.', 'error'); }
+                        } else if (r.error === "SECOND_BOOKING_ERROR") { showCallCenterModal.value = true; } else if (r.error === "BAD_PHONE" || r.error === "BAD_BIRTH_DATE") { errors[r.error === "BAD_PHONE" ? 'phone' : 'birth_date'] = r.message; addToast(r.message, 'error'); } else { addToast(r.message || 'Не удалось записаться. Попробуйте позже.', 'error'); }
                     })
                     .catch(e => { addToast('Сетевая ошибка', 'error'); }).finally(() => { isSubmitting.value = false; });
                 };

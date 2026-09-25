@@ -94,3 +94,23 @@ async def test_update_note(client):
     await client.update_note("a1", "✅ Визит подтвержден пациентом (MAX)")
     body = json.loads(route.calls.last.request.content)
     assert body == {"appointment_id": "a1", "note": "✅ Визит подтвержден пациентом (MAX)"}
+
+
+@respx.mock
+async def test_book_stage1_response_fields(client):
+    """Этап 1: ответ book с полями пациента и ошибка с машинным code принимаются как есть."""
+    respx.post(f"{BASE}/book").respond(
+        json={
+            "status": "success",
+            "appointment_id": "a1",
+            "patient_id": "p1",
+            "patient": "found",
+            "medical_card": "existing",
+        }
+    )
+    data = await client.create_booking({"doctor_id": "d"})
+    assert data["patient"] == "found" and data["medical_card"] == "existing"
+    respx.post(f"{BASE}/book").respond(
+        json={"status": "error", "code": "STATE_NOT_CONFIGURED", "error": "Запись не создана"}
+    )
+    assert (await client.create_booking({"doctor_id": "d"}))["code"] == "STATE_NOT_CONFIGURED"
