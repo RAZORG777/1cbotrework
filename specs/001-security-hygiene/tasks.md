@@ -161,15 +161,16 @@ description: "Task list for 001-security-hygiene"
 
 - [ ] T061 [P] [US3] В `telegram_bot/app/auth.py` добавить зависимости `require_onec_secret` (`X-Bot-Secret`), `require_tg_webhook_secret`, `require_admin` (Basic из `ADMIN_USERNAME`/`ADMIN_PASSWORD`, `compare_digest`, WARN в журнал при неудаче); в `telegram_bot/app/db.py` — `mark_processed(session, key) -> bool`
 - [ ] T062 [P] [US3] То же в `max_bot/app/auth.py` (`require_max_webhook_secret` по `X-Max-Bot-Api-Secret`) и `max_bot/app/db.py`
-- [ ] T063 [US3] Переделать отправку сигналов в 1С по contracts/onec-signals.md: `ОтправитьСигналБотуОбОтменеНаСервере` (регистр сведений «ПричиныОтменыЗаявок») и найденный код `finish-visit` — отправка **обоим** ботам (`127.0.0.1:8001` и `127.0.0.1:8002/max`), заголовок `X-Bot-Secret` с отдельным секретом для каждого бота, адреса и секреты — из констант, таймаут 5 с, каждый вызов в `Попытка` с записью в журнал регистрации; выгрузить изменённые модули в `onec/`; применить сначала в тестовой УМЦ (принцип II)
-- [ ] T064 [US3] Подключить `require_onec_secret` и идемпотентность (`onec:{type}:{id}`) в `telegram_bot/app/routes/internal.py`; унифицировать ответы по contracts/onec-signals.md
-- [ ] T065 [US3] То же в `max_bot/app/routes/internal.py`
-- [ ] T066 [US3] В `telegram_bot/app/routes/webhook.py` подключить `require_tg_webhook_secret` и идемпотентность (`tg:{update_id}`); `/stats` — только число активных записей и заданий; `callback_query` → `answerCallbackQuery`
-- [ ] T067 [US3] Переписать `max_bot/app/routes/webhook.py`: `require_max_webhook_secret`; ответ 200 сразу, обработка через `BackgroundTasks`; разбор `message_callback` из `update["callback"]["payload"]` и `update["callback"]["user"]["user_id"]` + `answer_callback`; идемпотентность по `callback_id` / `mid`; удалить `GET /max/webhook`
-- [ ] T068 [US3] Подключить `require_admin` в `telegram_bot/app/routes/admin.py` и `max_bot/app/routes/admin.py`; убрать пароль `5069522709` и значения по умолчанию `ADMIN_IDS` из кода
-- [ ] T069 [P] [US3] `telegram_bot/scripts/register_webhook.py`: `setWebhook` с `secret_token` и `allowed_updates` через `TELEGRAM_API_BASE`; вывод результата без токена
-- [ ] T070 [P] [US3] `max_bot/scripts/register_webhook.py`: `POST /subscriptions` с `secret` и `update_types=[bot_started, message_created, message_callback]`
-- [ ] T071 [P] [US3] `telegram_bot/scripts/send_onec_signal.py` и `max_bot/scripts/send_onec_signal.py`: CLI `cancel|finish <appointment_id>` с `X-Bot-Secret` из `.env`, только для тестового стенда (замена удалённого `test.py`)
+- [ ] T063 [US3] Перенести отправку `cancel-visit` из модуля формы регистра «ПричиныОтменыЗаявок» в расширение конфигурации: `&После("ПриЗаписи")` документа «Заявка» по условиям из contracts/onec-signals.md (тип состояния «Отменена» или пометка удаления, заявка создана `api_bot`; без проверки слова «бот»); общая процедура отправки обоим ботам (`127.0.0.1:8001` и `127.0.0.1:8002/max`) с `X-Bot-Secret` (отдельный секрет на бот), адреса и секреты — из констант, таймаут 5 с, `Попытка` с записью в журнал регистрации; удалить старый код из формы; выгрузить расширение в `onec/`; применить сначала в тестовой УМЦ (принцип II)
+- [ ] T064 [US3] Добавить в то же расширение отправку `finish-visit`, которой в конфигурации нет: `&После("ОбработкаПроведения")` документа «Прием» — если `ДокументОснование` является «Заявкой», созданной `api_bot`, отправить её UUID обоим ботам общей процедурой из T063; перепроведение безопасно (идемпотентность на стороне ботов); проверить в тестовой УМЦ, что проведение приёма приводит к просьбе об отзыве через 20 минут
+- [ ] T065 [US3] Подключить `require_onec_secret` и идемпотентность (`onec:{type}:{id}`) в `telegram_bot/app/routes/internal.py`; унифицировать ответы по contracts/onec-signals.md
+- [ ] T066 [US3] То же в `max_bot/app/routes/internal.py`
+- [ ] T067 [US3] В `telegram_bot/app/routes/webhook.py` подключить `require_tg_webhook_secret` и идемпотентность (`tg:{update_id}`); `/stats` — только число активных записей и заданий; `callback_query` → `answerCallbackQuery`
+- [ ] T068 [US3] Переписать `max_bot/app/routes/webhook.py`: `require_max_webhook_secret`; ответ 200 сразу, обработка через `BackgroundTasks`; разбор `message_callback` из `update["callback"]["payload"]` и `update["callback"]["user"]["user_id"]` + `answer_callback`; идемпотентность по `callback_id` / `mid`; удалить `GET /max/webhook`
+- [ ] T069 [US3] Подключить `require_admin` в `telegram_bot/app/routes/admin.py` и `max_bot/app/routes/admin.py`; убрать пароль `5069522709` и значения по умолчанию `ADMIN_IDS` из кода
+- [ ] T070 [P] [US3] `telegram_bot/scripts/register_webhook.py`: `setWebhook` с `secret_token` и `allowed_updates` через `TELEGRAM_API_BASE`; вывод результата без токена
+- [ ] T071 [P] [US3] `max_bot/scripts/register_webhook.py`: `POST /subscriptions` с `secret` и `update_types=[bot_started, message_created, message_callback]`
+- [ ] T072 [P] [US3] `telegram_bot/scripts/send_onec_signal.py` и `max_bot/scripts/send_onec_signal.py`: CLI `cancel|finish <appointment_id>` с `X-Bot-Secret` из `.env`, только для тестового стенда (замена удалённого `test.py`)
 
 **Checkpoint**: US1–US3 работают независимо
 
@@ -183,18 +184,18 @@ description: "Task list for 001-security-hygiene"
 
 ### Tests for User Story 4
 
-- [ ] T072 [P] [US4] `telegram_bot/tests/contract/test_consent.py`: `/book` и `/reschedule` без `pd_consent` или с `false` → 422 `PD_CONSENT_REQUIRED`, в 1С ничего не ушло
-- [ ] T073 [P] [US4] `max_bot/tests/contract/test_consent.py` — то же
-- [ ] T074 [P] [US4] `telegram_bot/tests/integration/test_no_pii_in_logs.py`: прогнать book → reschedule → cancel → book → finish-visit → вебхук `/start` с тестовыми ФИО, телефоном, датой рождения, в том числе при ошибке 1С (500) → в файле журнала, буфере админки и HTML `/admin` нет ни одной из этих строк
-- [ ] T075 [P] [US4] `max_bot/tests/integration/test_no_pii_in_logs.py` — то же плюс входящий апдейт MAX с `user.name` не попадает в журнал
+- [ ] T073 [P] [US4] `telegram_bot/tests/contract/test_consent.py`: `/book` и `/reschedule` без `pd_consent` или с `false` → 422 `PD_CONSENT_REQUIRED`, в 1С ничего не ушло
+- [ ] T074 [P] [US4] `max_bot/tests/contract/test_consent.py` — то же
+- [ ] T075 [P] [US4] `telegram_bot/tests/integration/test_no_pii_in_logs.py`: прогнать book → reschedule → cancel → book → finish-visit → вебхук `/start` с тестовыми ФИО, телефоном, датой рождения, в том числе при ошибке 1С (500) → в файле журнала, буфере админки и HTML `/admin` нет ни одной из этих строк
+- [ ] T076 [P] [US4] `max_bot/tests/integration/test_no_pii_in_logs.py` — то же плюс входящий апдейт MAX с `user.name` не попадает в журнал
 
 ### Implementation for User Story 4
 
-- [ ] T076 [P] [US4] В модель запроса `telegram_bot/app/routes/webapp.py` добавить `pd_consent: bool`, проверка → 422; то же в `max_bot/app/routes/webapp.py`
-- [ ] T077 [P] [US4] В `telegram_bot/static/index.html` добавить отдельный чекбокс согласия (по умолчанию снят, ссылка из `/config`), визуально отделить его от «Напоминать о визите»; кнопка отправки проверяет согласие и показывает подсказку; убрать фразу «Нажимая кнопку…»; `pd_consent` в теле
-- [ ] T078 [P] [US4] То же в `max_bot/static/index.html` (ссылка на политику из `/max/config`, открытие через `WebApp.openLink`)
-- [ ] T079 [US4] Вычистить ПДн из вызовов логгера в `telegram_bot/app/**` и `max_bot/app/**`: вместо фамилии и имени — `user_id` и `appointment_id`; удалить логирование сырого апдейта MAX; `HTTPException(detail=str(e))` заменить кодами из контракта (FR-017, FR-018)
-- [ ] T080 [US4] В `telegram_bot/app/routes/admin.py` и `max_bot/app/routes/admin.py` убрать из аналитики и списков ФИО и телефоны: оставить даты, филиалы, врачей, количество и статусы
+- [ ] T077 [P] [US4] В модель запроса `telegram_bot/app/routes/webapp.py` добавить `pd_consent: bool`, проверка → 422; то же в `max_bot/app/routes/webapp.py`
+- [ ] T078 [P] [US4] В `telegram_bot/static/index.html` добавить отдельный чекбокс согласия (по умолчанию снят, ссылка из `/config`), визуально отделить его от «Напоминать о визите»; кнопка отправки проверяет согласие и показывает подсказку; убрать фразу «Нажимая кнопку…»; `pd_consent` в теле
+- [ ] T079 [P] [US4] То же в `max_bot/static/index.html` (ссылка на политику из `/max/config`, открытие через `WebApp.openLink`)
+- [ ] T080 [US4] Вычистить ПДн из вызовов логгера в `telegram_bot/app/**` и `max_bot/app/**`: вместо фамилии и имени — `user_id` и `appointment_id`; удалить логирование сырого апдейта MAX; `HTTPException(detail=str(e))` заменить кодами из контракта (FR-017, FR-018)
+- [ ] T081 [US4] В `telegram_bot/app/routes/admin.py` и `max_bot/app/routes/admin.py` убрать из аналитики и списков ФИО и телефоны: оставить даты, филиалы, врачей, количество и статусы
 
 **Checkpoint**: US1–US4 работают независимо
 
@@ -206,10 +207,10 @@ description: "Task list for 001-security-hygiene"
 
 **Independent Test**: quickstart.md › US5
 
-- [ ] T081 [P] [US5] Создать `.github/workflows/ci.yml`: триггеры `pull_request` и `push` в `main`; матрица `bot: [telegram_bot, max_bot]`; Python из `.python-version`; `pip install -r requirements-dev.txt`; `ruff check .`; `ruff format --check .`; `pytest -q`; job называется `CI`
-- [ ] T082 [P] [US5] Создать `deploy/install-services.ps1`: параметры `-NssmPath`, `-RepoRoot`; для каждого бота — venv `.venv` в каталоге бота, `pip install -r requirements.txt`, `nssm install yasno-telegram-bot|yasno-max-bot <venv>\Scripts\python.exe -m app.main`, `AppDirectory`, `AppStdout`/`AppStderr` в `logs\`, `Start SERVICE_AUTO_START`, `AppExit Default Restart`; идемпотентен (повторный запуск обновляет параметры)
-- [ ] T083 [P] [US5] Создать `deploy/deploy.ps1`: `git pull --ff-only` → `pip install -r requirements.txt` в venv каждого бота → `nssm restart` обеих служб → опрос `http://127.0.0.1:8001/healthz` и `http://127.0.0.1:8002/max/healthz` до 30 с → ненулевой код и понятное сообщение при сбое
-- [ ] T084 [US5] Переписать `README.md` в корне (UTF-8): назначение, структура репозитория, запуск локально, тесты, ссылки на конституцию, `docs/rework-plan.md`, quickstart и скрипты `deploy/`; раздел «Первичная настройка стенда» — ручные шаги из quickstart.md › 3
+- [ ] T082 [P] [US5] Создать `.github/workflows/ci.yml`: триггеры `pull_request` и `push` в `main`; матрица `bot: [telegram_bot, max_bot]`; Python из `.python-version`; `pip install -r requirements-dev.txt`; `ruff check .`; `ruff format --check .`; `pytest -q`; job называется `CI`
+- [ ] T083 [P] [US5] Создать `deploy/install-services.ps1`: параметры `-NssmPath`, `-RepoRoot`; для каждого бота — venv `.venv` в каталоге бота, `pip install -r requirements.txt`, `nssm install yasno-telegram-bot|yasno-max-bot <venv>\Scripts\python.exe -m app.main`, `AppDirectory`, `AppStdout`/`AppStderr` в `logs\`, `Start SERVICE_AUTO_START`, `AppExit Default Restart`; идемпотентен (повторный запуск обновляет параметры)
+- [ ] T084 [P] [US5] Создать `deploy/deploy.ps1`: `git pull --ff-only` → `pip install -r requirements.txt` в venv каждого бота → `nssm restart` обеих служб → опрос `http://127.0.0.1:8001/healthz` и `http://127.0.0.1:8002/max/healthz` до 30 с → ненулевой код и понятное сообщение при сбое
+- [ ] T085 [US5] Переписать `README.md` в корне (UTF-8): назначение, структура репозитория, запуск локально, тесты, ссылки на конституцию, `docs/rework-plan.md`, quickstart и скрипты `deploy/`; раздел «Первичная настройка стенда» — ручные шаги из quickstart.md › 3
 
 **Checkpoint**: все истории готовы, выкладка воспроизводима
 
@@ -217,9 +218,9 @@ description: "Task list for 001-security-hygiene"
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T085 [P] Обновить `docs/rework-plan.md`: отметить этап 0 выполненным, добавить найденный дефект кнопок MAX и переход на `platform-api2.max.ru`
-- [ ] T086 Прогнать `ruff format` и полный `pytest` в обоих ботах; убедиться, что `git ls-files` не содержит `.env`, `*.key`, `*.crt`, `*.db`, `*.log`, архивов
-- [ ] T087 Выполнить quickstart.md целиком на тестовом стенде (тестовые боты + тестовая УМЦ), замерить: время CI на PR (SC-006, ≤ 10 мин), время `deploy/install-services.ps1` + `deploy/deploy.ps1` на чистом сервере (SC-007, ≤ 15 мин), время полного сценария записи до и после (SC-008); затем выкладка в прод по quickstart.md › 5 и проверка в `/admin`, что после миграции активных записей столько же, сколько будущих визитов
+- [ ] T086 [P] Обновить `docs/rework-plan.md`: отметить этап 0 выполненным, добавить найденный дефект кнопок MAX и переход на `platform-api2.max.ru`
+- [ ] T087 Прогнать `ruff format` и полный `pytest` в обоих ботах; убедиться, что `git ls-files` не содержит `.env`, `*.key`, `*.crt`, `*.db`, `*.log`, архивов
+- [ ] T088 Выполнить quickstart.md целиком на тестовом стенде (тестовые боты + тестовая УМЦ), замерить: время CI на PR (SC-006, ≤ 10 мин), время `deploy/install-services.ps1` + `deploy/deploy.ps1` на чистом сервере (SC-007, ≤ 15 мин), время полного сценария записи до и после (SC-008); затем выкладка в прод по quickstart.md › 5 и проверка в `/admin`, что после миграции активных записей столько же, сколько будущих визитов
 
 ---
 
@@ -235,7 +236,7 @@ description: "Task list for 001-security-hygiene"
 - **US3 (5)** — после фазы 2. Файлы `internal.py`/`webhook.py` пересекаются с T053/T054/T046,
   значит после US2 для одного бота
 - **US4 (6)** — после US1 (правит `index.html` и `webapp.py`)
-- **US5 (7)** — после фазы 1; CI (T081) имеет смысл включить сразу после T025–T028
+- **US5 (7)** — после фазы 1; CI (T082) имеет смысл включить сразу после T025–T028
 - **Polish (8)** — после всех историй
 
 ### User Story Dependencies
@@ -256,7 +257,7 @@ Phase 1 ─► Phase 2 ─┬─► US1 ─► US2 ─► US3 ─┐
 
 - Почти все пары задач TG/MAX помечены [P] и идут параллельно (разные каталоги)
 - В фазе 2 параллельны T009–T022, T025–T035 (с учётом зависимостей выше)
-- В US5 T081–T083 не зависят друг от друга
+- В US5 T082–T084 не зависят друг от друга
 
 ---
 
@@ -289,7 +290,7 @@ T041 max_bot/app/auth.py
 ### Incremental Delivery
 
 1. MVP (US1 + US2) → тест → прод
-2. US3 (секреты + кнопки MAX) → в 1С добавить `X-Bot-Secret` (T063, код 1С — в `onec/`) → тест → прод
+2. US3 (секреты + кнопки MAX) → в 1С переделать `cancel-visit` и сделать `finish-visit` (T063, T064, код 1С — в `onec/`) → тест → прод
 3. US4 (согласие, журналы) → тест → прод
 4. US5 (CI, скрипты) — CI включается как можно раньше, скрипты выкладки — к первой выкладке
 
