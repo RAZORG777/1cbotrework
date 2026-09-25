@@ -7,6 +7,7 @@
 - Конфигурация: БИТ.Управление медицинским центром 2.0.49.101, платформа 8.3.27.
 - База HTTP-сервиса — переменная `ONEC_URL` ботов; авторизация — Basic (`ONEC_USER`/`ONEC_PASSWORD`).
 - Все ответы — JSON в UTF-8.
+- HTTP-сервис `tgbot` публикуется расширением `TGBotAPI` (роль `TG_ОсновнаяРоль`), а не основной конфигурацией. Его модуль совпадает с `onec/http-service.bsl`; URL-шаблоны: `/ping`, `/specialties`, `/doctors`, `/schedule`, `/book`, `/services/*`, `/cancel`, `/reschedule`, `/update_note`.
 
 ## 1. Бот → 1С (HTTP-сервис, `onec/http-service.bsl`)
 

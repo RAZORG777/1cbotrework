@@ -10,6 +10,13 @@ chain.txt
 # Данные пациентов и логи
 *.db
 *.db-journal
+*.db-wal
+*.db-shm
+*.cf
+*.cfe
+# собранные расширения 1С (только код, без данных) храним в репозитории
+!onec/*.cfe
+!onec/extension/*.cfe
 *.sqlite*
 logs/
 *.log
