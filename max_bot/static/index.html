@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Запись в клинику «ЯСНО ВИЖУ»</title>
     
+    <script src="https://st.max.ru/js/max-web-app.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js"></script>
@@ -136,7 +137,7 @@
                 <div v-if="accessError" class="text-center py-24 px-6 view-animate">
                     <div class="text-6xl mb-6">🤖</div>
                     <h2 class="text-2xl font-black text-red-500 mb-4">Ошибка доступа</h2>
-                    <p class="text-gray-500 text-sm leading-relaxed">Пожалуйста, запустите приложение, перейдя по специальной ссылке из мессенджера.</p>
+                    <p class="text-gray-500 text-sm leading-relaxed">{{ accessErrorText }}</p>
                 </div>
 
                 <template v-else>
@@ -384,14 +385,18 @@
                                 <p v-if="errors.phone" class="text-red-500 text-[10px] mt-1 ml-2">{{ errors.phone }}</p>
                             </div>
 
+                            <label class="flex items-start gap-3 p-4 glass-card cursor-pointer border-2" :class="errors.pd_consent ? 'border-red-400' : 'border-transparent'">
+                                <input type="checkbox" v-model="patientForm.pd_consent" @change="clearError('pd_consent')" class="w-5 h-5 mt-0.5 accent-[#32a396] flex-shrink-0">
+                                <span class="text-[11px] leading-tight font-semibold">Я даю <a href="#" @click.prevent="openPolicy" class="underline text-teal-600">согласие на обработку персональных данных</a>*</span>
+                            </label>
+                            <p v-if="errors.pd_consent" class="text-red-500 text-[10px] -mt-2 ml-2">{{ errors.pd_consent }}</p>
+
                             <button @click="validateAndSend" :disabled="isSubmitting" class="w-full btn-yasno py-5 shadow-xl mt-4 uppercase text-sm tracking-wider">
                                 <span v-if="isSubmitting">Обработка...</span>
                                 <span v-else>{{ isRescheduling ? 'Подтвердить перенос' : 'Завершить запись' }}</span>
                             </button>
                             
-                            <p class="text-[10px] text-gray-500 text-center mt-2 px-2 leading-tight">
-                                Нажимая кнопку, вы соглашаетесь на обработку персональных данных и соглашаетесь с <a href="https://yasno-vizhu.com/upload/iblock/873/7jmow8oc86ww4hb3vq8i5iqhrwgwfpiy/Политика_обработки_ПД%20_ЯВ.pdf" target="_blank" class="underline text-teal-600">политикой конфиденциальности</a>.
-                            </p>
+                            
                         </div>
                     </div>
 
@@ -511,7 +516,29 @@
                 const monthsRU = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
                 const daysRU = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
 
-                const accessError = ref(false); let userTgId = null;
+                const accessError = ref(false);
+                const accessErrorText = ref('Пожалуйста, откройте запись через бота клиники в MAX.');
+                const maxApp = window.WebApp || null;
+                const initData = (maxApp && maxApp.initData) ? maxApp.initData : '';
+                const pdPolicyUrl = ref('');
+                // Все запросы к API подписываются initData мини-приложения MAX (сервер проверяет подпись).
+                const api = (path, opts = {}) => {
+                    const headers = Object.assign({}, opts.headers || {}, { 'Authorization': 'tma ' + initData });
+                    return fetch(path, Object.assign({}, opts, { headers })).then(r => {
+                        if (r.status === 401) {
+                            r.clone().json().then(b => {
+                                accessErrorText.value = (b && b.error === 'SESSION_EXPIRED')
+                                    ? 'Сессия устарела. Закройте приложение и откройте его из бота заново.'
+                                    : 'Пожалуйста, откройте запись через бота клиники в MAX.';
+                            }).catch(() => {}).finally(() => { accessError.value = true; });
+                        }
+                        return r;
+                    });
+                };
+                const openPolicy = () => {
+                    const url = pdPolicyUrl.value; if (!url) return;
+                    if (maxApp && maxApp.openLink) { maxApp.openLink(url); } else { window.open(url, '_blank'); }
+                };
                 const currentView = ref('view-branches');
                 const curBranch = ref(''); const curPath = ref(''); const curDoc = ref({}); const curService = ref({});
                 const curDate = ref(''); const curTime = ref(''); const scheduleStartDate = ref(new Date());
@@ -544,8 +571,8 @@
                 const resolveConfirm = (value) => { confirmModal.show = false; if (confirmModal.resolve) confirmModal.resolve(value); };
 
                 // ФОРМА И СЕМЕЙНЫЙ ПРОФИЛЬ
-                const patientForm = reactive({ last_name: '', first_name: '', middle_name: '', birth_date: '', phone: '', consent: true });
-                const errors = reactive({ last_name: '', first_name: '', birth_date: '', phone: '' });
+                const patientForm = reactive({ last_name: '', first_name: '', middle_name: '', birth_date: '', phone: '', consent: true, pd_consent: false });
+                const errors = reactive({ last_name: '', first_name: '', birth_date: '', phone: '', pd_consent: '' });
                 const patientMode = ref('myself');
                 
                 const savedFamily = ref([]);
@@ -560,6 +587,7 @@
                     if (!patientForm.first_name.trim()) { errors.first_name = 'Укажите имя'; isValid = false; }
                     if (patientForm.birth_date.length < 10) { errors.birth_date = 'Некорректная дата'; isValid = false; }
                     if (patientForm.phone.length < 18) { errors.phone = 'Укажите полный номер'; isValid = false; }
+                    if (!patientForm.pd_consent) { errors.pd_consent = 'Нужно согласие на обработку персональных данных'; isValid = false; }
                     if (!isValid) addToast('Исправьте ошибки в форме', 'error');
                     return isValid;
                 };
@@ -624,12 +652,10 @@
                 const filteredServicesSecondary = computed(() => { if (!searchQuerySrv.value) return servicesSecondary.value; return servicesSecondary.value.filter(s => s.displayName.toLowerCase().includes(searchQuerySrv.value.toLowerCase())); });
 
                 onMounted(() => {
-                    const urlParams = new URLSearchParams(window.location.search);
-                    
-                    userTgId = urlParams.get('user_id') || localStorage.getItem('max_user_id') || '12345';
-                    
-                    if (!userTgId) { accessError.value = true; return; }
-                    localStorage.setItem('max_user_id', userTgId);
+                    // Форма работает только как мини-приложение MAX: без initData сервер отклонит запросы.
+                    if (!initData) { accessError.value = true; return; }
+                    try { if (maxApp.ready) maxApp.ready(); } catch (e) {}
+                    fetch('/max/config').then(r => r.json()).then(c => { pdPolicyUrl.value = c.pd_policy_url || ''; }).catch(() => {});
                     
                     try { savedFamily.value = JSON.parse(localStorage.getItem('max_family_profiles') || '[]'); } catch(e){}
                     showView('view-branches');
@@ -645,7 +671,7 @@
                 // API
                 const loadAllDoctorsForBranch = async () => {
                     loadingDoctors.value = true; doctorsList.value = [];
-                    try { const r = await fetch(`/max/doctors?branch=${encodeURIComponent(curBranch.value)}`); const data = await r.json(); doctorsList.value = Array.isArray(data) ? data : (data.data || []); } 
+                    try { const r = await api(`/max/doctors?branch=${encodeURIComponent(curBranch.value)}`); const data = await r.json(); doctorsList.value = Array.isArray(data) ? data : (data.data || []); } 
                     catch (e) { addToast('Ошибка загрузки', 'error'); } finally { loadingDoctors.value = false; }
                 };
 
@@ -654,7 +680,7 @@
                 const loadServicesForDoctor = async () => {
                     loadingServices.value = true; loadingServicesText.value = 'Получение услуг...'; servicesPrimary.value = []; servicesSecondary.value = [];
                     try {
-                        const r = await fetch(`/max/services?doctor_id=${curDoc.value.id}`); const res = await r.json(); const data = Array.isArray(res) ? res : (res.data || []);
+                        const r = await api(`/max/services?doctor_id=${curDoc.value.id}`); const res = await r.json(); const data = Array.isArray(res) ? res : (res.data || []);
                         data.forEach((s) => { if (s.id === 'empty') return; let dn = serviceAliases[s.name] || s.name.replace(/\.\.$/, ''); let obj = { id: s.id, name: s.name, displayName: dn, price: s.price }; if (dn.toLowerCase().includes('повторн')) servicesSecondary.value.push(obj); else servicesPrimary.value.push(obj); });
                     } catch(e) { addToast('Ошибка загрузки услуг', 'error'); } finally { loadingServices.value = false; }
                 };
@@ -662,9 +688,9 @@
                 const loadAllServicesForBranch = async () => {
                     loadingServices.value = true; loadingServicesText.value = 'Сбор услуг клиники...'; servicesPrimary.value = []; servicesSecondary.value = [];
                     try {
-                        let docsRes = await fetch(`/max/doctors?branch=${encodeURIComponent(curBranch.value)}`); let docsData = await docsRes.json();
+                        let docsRes = await api(`/max/doctors?branch=${encodeURIComponent(curBranch.value)}`); let docsData = await docsRes.json();
                         globalDoctorsCache = Array.isArray(docsData) ? docsData : (docsData.data || []); if (globalDoctorsCache.length === 0) return;
-                        let fetchPromises = globalDoctorsCache.map(doc => fetch(`/max/services?doctor_id=${doc.id}`).then(r => r.json()).catch(() => []));
+                        let fetchPromises = globalDoctorsCache.map(doc => api(`/max/services?doctor_id=${doc.id}`).then(r => r.json()).catch(() => []));
                         let results = await Promise.all(fetchPromises); globalServicesMap = {};
                         results.forEach((srvData, i) => { let doc = globalDoctorsCache[i]; let list = Array.isArray(srvData) ? srvData : (srvData.data || []); list.forEach(s => { if (s.id === 'empty') return; let dn = serviceAliases[s.name] || s.name.replace(/\.\.$/, ''); if (!globalServicesMap[s.id]) globalServicesMap[s.id] = { id: s.id, name: s.name, displayName: dn, price: s.price, doctors: [] }; globalServicesMap[s.id].doctors.push(doc); }); });
                         Object.values(globalServicesMap).forEach(s => { if (s.displayName.toLowerCase().includes('повторн')) servicesSecondary.value.push(s); else servicesPrimary.value.push(s); });
@@ -721,7 +747,7 @@
                     schedulePeriodLabel.value = `Поиск свободных слотов...`;
                     
                     try {
-                        const res = await fetch(`/max/schedule?doctor_id=${curDoc.value.id}&start_date=${startStr}&end_date=${endStr}&branch=${encodeURIComponent(curBranch.value)}`);
+                        const res = await api(`/max/schedule?doctor_id=${curDoc.value.id}&start_date=${startStr}&end_date=${endStr}&branch=${encodeURIComponent(curBranch.value)}`);
                         const data = await res.json();
                         
                         if (data.status === 'success' && data.schedule) {
@@ -756,7 +782,7 @@
                 const handleDateInput = (e) => { clearError('birth_date'); let x = e.target.value.replace(/\D/g, '').match(/(\d{0,2})(\d{0,2})(\d{0,4})/); if(x) patientForm.birth_date = !x[2] ? x[1] : x[1] + '.' + x[2] + (x[3] ? '.' + x[3] : ''); };
 
                 const checkMyAppointment = () => {
-                    fetch(`/max/my_appointment?tg_id=${userTgId}`).then(r => r.json()).then(res => {
+                    api(`/max/my_appointment`).then(r => r.json()).then(res => {
                         if (res.has_appointment) { let d = res.data; activeAppointmentId.value = d.appointment_id || d.id || res.appointment_id; myAppointmentData.value = { displayBranch: d.branch === 'Ватутинки' ? 'Новые Ватутинки' : d.branch, formattedDate: d.date.split('-').reverse().join('.'), time: d.time, service_name: d.service_name, doctor_name: d.doctor_name }; showView('view-my-appointment'); } 
                         else { showNoAppointmentsModal.value = true; }
                     }).catch(() => { showNoAppointmentsModal.value = true; });
@@ -767,12 +793,12 @@
 
                 const sendBooking = () => {
                     isSubmitting.value = true;
-                    const payload = { tg_id: userTgId, branch: curBranch.value, doctor_id: curDoc.value.id, doctor_name: curDoc.value.name, service_id: curService.value.id, service_name: curService.value.name, date: curDate.value, time: curTime.value, patient: { ...patientForm } };
-                    let endpoint = `/max/book?send_notifications=${patientForm.consent}`;
-                    if (isRescheduling.value) { payload.old_appointment_id = activeAppointmentId.value; endpoint = `/max/reschedule?send_notifications=${patientForm.consent}`; }
+                    const payload = { branch: curBranch.value, doctor_id: curDoc.value.id, doctor_name: curDoc.value.name, service_id: curService.value.id, service_name: curService.value.name, date: curDate.value, time: curTime.value, patient: { last_name: patientForm.last_name, first_name: patientForm.first_name, middle_name: patientForm.middle_name, phone: patientForm.phone, birth_date: patientForm.birth_date }, send_notifications: patientForm.consent, pd_consent: patientForm.pd_consent };
+                    let endpoint = '/max/book';
+                    if (isRescheduling.value) { payload.old_appointment_id = activeAppointmentId.value; endpoint = '/max/reschedule'; }
 
-                    fetch(endpoint, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
-                    .then(async r => { if (!r.ok) throw new Error('Server Error'); return r.json(); })
+                    api(endpoint, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
+                    .then(async r => { if (r.status === 401) throw new Error('auth'); const body = await r.json().catch(() => ({})); if (!r.ok && !body.message) throw new Error('Server Error'); return body; })
                     .then(r => {
                         if(r.status === 'success') { 
                             const pfData = { last_name: patientForm.last_name, first_name: patientForm.first_name, middle_name: patientForm.middle_name, phone: patientForm.phone, birth_date: patientForm.birth_date };
@@ -783,7 +809,7 @@
                             isRescheduling.value = false;  
                             try { if (typeof confetti === 'function') confetti(); } catch(e){} 
                             addToast('Успешно записано!', 'success'); showView('view-success'); 
-                        } else if (r.error === "SECOND_BOOKING_ERROR") { showCallCenterModal.value = true; } else { addToast(r.error || 'Ошибка', 'error'); }
+                        } else if (r.error === "SECOND_BOOKING_ERROR") { showCallCenterModal.value = true; } else { addToast(r.message || 'Не удалось записаться. Попробуйте позже.', 'error'); }
                     })
                     .catch(e => { addToast('Сетевая ошибка', 'error'); }).finally(() => { isSubmitting.value = false; });
                 };
@@ -791,8 +817,8 @@
                 const promptCancelAppointment = async () => { const confirm = await openConfirm('Отмена записи', 'Отменить визит к врачу? Это нельзя вернуть.'); if (confirm) executeCancelAppointment(); };
                 const executeCancelAppointment = () => {
                     isCancelling.value = true;
-                    fetch('/max/cancel', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ tg_id: userTgId }) })
-                    .then(r => r.json()).then(r => { if(r.status === 'success') { isRescheduling.value = false; addToast('Отменено', 'success'); showView('view-branches'); } else { addToast('Ошибка: ' + r.error, 'error'); } })
+                    api('/max/cancel', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' })
+                    .then(r => r.json()).then(r => { if(r.status === 'success') { isRescheduling.value = false; addToast('Отменено', 'success'); showView('view-branches'); } else { addToast(r.message || 'Не удалось отменить запись', 'error'); } })
                     .catch(e => { addToast('Ошибка', 'error'); }).finally(() => { isCancelling.value = false; }); 
                 };
 
@@ -833,7 +859,7 @@
                 };
 
                 return {
-                    accessError, currentView, curBranch, curPath, curDoc, curService, curDate, curTime, schedulePeriodLabel,
+                    accessError, accessErrorText, openPolicy, currentView, curBranch, curPath, curDoc, curService, curDate, curTime, schedulePeriodLabel,
                     isRescheduling, activeAppointmentId, myAppointmentData, searchQueryDoc, searchQuerySrv,
                     doctorsList, servicesPrimary, servicesSecondary, scheduleDays, loadingDoctors, loadingServices, loadingServicesText, loadingSchedule, isSubmitting, isCancelling,
                     showNoAppointmentsModal, showCallCenterModal, patientForm, patientMode, errors, toasts, confirmModal, resolveConfirm,

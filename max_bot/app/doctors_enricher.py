@@ -3,90 +3,91 @@
 # Локальная база с дополнительной информацией о врачах клиники «ЯСНО ВИЖУ».
 DOCTORS_EXTRA_INFO = {
     "Белогурова Алена Вячеславовна": {
-        "photo_url": "https://prodoctorov.ru/media/photo/moskva/doctorimage/219141/2486688-219141-belogurova_square.jpg", 
+        "photo_url": "https://prodoctorov.ru/media/photo/moskva/doctorimage/219141/2486688-219141-belogurova_square.jpg",
         "experience": "15 лет, к.м.н.",
         "description": "Кандидат медицинских наук, врач-офтальмолог, лазерный и рефракционный хирург",
         "prodoctorov_url": "https://prodoctorov.ru/new/rate/doctor/219141/",
-        "branches": ["Профсоюзная"]  # <-- Впиши сюда нужные филиалы, например: ["Профсоюзная"]
+        "branches": ["Профсоюзная"],  # <-- Впиши сюда нужные филиалы, например: ["Профсоюзная"]
     },
-    "Белогурова Алёна Вячеславовна": { # Дубликат на случай буквы "ё" в 1С
-        "photo_url": "https://prodoctorov.ru/media/photo/moskva/doctorimage/219141/2486688-219141-belogurova_square.jpg", 
+    "Белогурова Алёна Вячеславовна": {  # Дубликат на случай буквы "ё" в 1С
+        "photo_url": "https://prodoctorov.ru/media/photo/moskva/doctorimage/219141/2486688-219141-belogurova_square.jpg",
         "experience": "15 лет, к.м.н.",
         "description": "Кандидат медицинских наук, врач-офтальмолог, лазерный и рефракционный хирург",
         "prodoctorov_url": "https://prodoctorov.ru/new/rate/doctor/219141/",
-        "branches": ["Профсоюзная"]
+        "branches": ["Профсоюзная"],
     },
     "Малахова Алена Валерьевна": {
         "photo_url": "https://prodoctorov.ru/media/photo/moskva/doctorimage/506706/887814-506706-malahova_square.jpg",
         "experience": "10 лет",
         "description": "Врач-офтальмолог, лазерный и рефракционный хирург",
         "prodoctorov_url": "https://prodoctorov.ru/new/rate/doctor/506706/",
-        "branches": ["Профсоюзная"]  # <-- Если два филиала, пиши: ["Профсоюзная", "Ватутинки"]
+        "branches": ["Профсоюзная"],  # <-- Если два филиала, пиши: ["Профсоюзная", "Ватутинки"]
     },
     "Турыгина Наталия Анатольевна": {
         "photo_url": "https://prodoctorov.ru/media/photo/moskva/doctorimage/447329/3210533-447329-turygina_square.jpg",
         "experience": "10 лет",
         "description": "Врач-офтальмолог, рефракционный хирург",
         "prodoctorov_url": "https://prodoctorov.ru/new/rate/doctor/447329/",
-        "branches": ["Профсоюзная"]
+        "branches": ["Профсоюзная"],
     },
     "Турыгина Наталья Анатольевна": {
         "photo_url": "https://prodoctorov.ru/media/photo/moskva/doctorimage/447329/3210533-447329-turygina_square.jpg",
         "experience": "10 лет",
         "description": "Врач-офтальмолог, рефракционный хирург",
         "prodoctorov_url": "https://prodoctorov.ru/new/rate/doctor/447329/",
-        "branches": ["Профсоюзная"]
+        "branches": ["Профсоюзная"],
     },
     "Гуртовая Алена Викторовна": {
         "photo_url": "https://prodoctorov.ru/media/photo/moskva/doctorimage/927221/4322291-927221-gurtovaya_square.jpg",
         "experience": "6 лет",
         "description": "Врач-офтальмолог, рефракционный хирург",
         "prodoctorov_url": "https://prodoctorov.ru/moskva/vrach/927221-gurtovaya/",
-        "branches": ["Профсоюзная", "Ватутинки"]
+        "branches": ["Профсоюзная", "Ватутинки"],
     },
     "Гуртовая Алёна Викторовна": {
         "photo_url": "https://prodoctorov.ru/media/photo/moskva/doctorimage/927221/4322291-927221-gurtovaya_square.jpg",
         "experience": "6 лет",
         "description": "Врач-офтальмолог, рефракционный хирург",
         "prodoctorov_url": "https://prodoctorov.ru/moskva/vrach/927221-gurtovaya/",
-        "branches": ["Профсоюзная", "Ватутинки"]
+        "branches": ["Профсоюзная", "Ватутинки"],
     },
     "Бегизова Фатима Владимировна": {
         "photo_url": "https://prodoctorov.ru/media/photo/moskva/doctorimage/219371/1051843-219371-begizova_square.jpg",
         "experience": "22 года",
         "description": "Врач-офтальмолог, детский офтальмолог(от 7 лет)",
         "prodoctorov_url": "https://prodoctorov.ru/moskva/vrach/219371-begizova/",
-        "branches": ["Ватутинки"]
+        "branches": ["Ватутинки"],
     },
     "Тарелкина Юлия Леонидовна": {
         "photo_url": "https://prodoctorov.ru/media/photo/moskva/doctorimage/445297/3301106-445297-tarelkina_square.jpg",
         "experience": "13 лет",
         "description": "Врач-офтальмолог, рефракционный хирург, детский офтальмолог(от 0 лет) ",
         "prodoctorov_url": "https://prodoctorov.ru/moskva/vrach/445297-tarelkina/",
-        "branches": ["Профсоюзная", "Ватутинки"]
+        "branches": ["Профсоюзная", "Ватутинки"],
     },
     "Луговской Артём Евгеньевич": {
         "photo_url": "https://prodoctorov.ru/media/photo/samara/doctorimage/1011062/1765630-1011062-lugovskoy_square.jpg",
         "experience": "11 лет",
         "description": "Врач-офтальмолог, рефракционный хирург, катаркатальный хирург",
         "prodoctorov_url": "https://prodoctorov.ru/moskva/vrach/1287452-lugovskoy/",
-        "branches": ["Профсоюзная", "Ватутинки"]
+        "branches": ["Профсоюзная", "Ватутинки"],
     },
     "Луговской Артем Евгеньевич": {
         "photo_url": "https://prodoctorov.ru/media/photo/samara/doctorimage/1011062/1765630-1011062-lugovskoy_square.jpg",
         "experience": "11 лет",
         "description": "Врач-офтальмолог, рефракционный хирург, катаркатальный хирург",
         "prodoctorov_url": "https://prodoctorov.ru/moskva/vrach/1287452-lugovskoy/",
-        "branches": ["Профсоюзная", "Ватутинки"]
+        "branches": ["Профсоюзная", "Ватутинки"],
     },
     "Гветадзе Анна Анзоровна": {
         "photo_url": "https://prodoctorov.ru/media/photo/moskva/doctorimage/457472/820655-457472-gvetadze_square.jpg",
         "experience": "17 лет, к.м.н.",
         "description": "Врач-офтальмолог, лазерный хирург",
         "prodoctorov_url": "https://prodoctorov.ru/moskva/vrach/457472-gvetadze/",
-        "branches": ["Профсоюзная"]
-    }
+        "branches": ["Профсоюзная"],
+    },
 }
+
 
 def enrich_doctors_data(doctors_from_1c: list, target_branch: str = None) -> list:
     """Функция для обогащения 'сухих' данных из 1С фото, стажем и фильтрации по филиалу."""
@@ -95,14 +96,14 @@ def enrich_doctors_data(doctors_from_1c: list, target_branch: str = None) -> lis
         # Убедимся, что работаем со словарем
         doc_dict = dict(doc) if not isinstance(doc, dict) else doc.copy()
         name = doc_dict.get("full_name", "").strip()
-        
+
         # Ищем врача в нашем словаре (игнорируя разницу между 'е' и 'ё')
         found_info = None
         for key in DOCTORS_EXTRA_INFO:
             if key.replace("ё", "е").lower() in name.replace("ё", "е").lower():
                 found_info = DOCTORS_EXTRA_INFO[key]
                 break
-                
+
         # --- НОВАЯ ЛОГИКА ФИЛЬТРАЦИИ ПО ФИЛИАЛУ ---
         if target_branch and found_info:
             doctor_branches = found_info.get("branches", [])
@@ -118,14 +119,17 @@ def enrich_doctors_data(doctors_from_1c: list, target_branch: str = None) -> lis
             doc_dict["prodoctorov_url"] = found_info.get("prodoctorov_url", "")
         else:
             # Дефолтная заглушка для новых врачей, которых еще нет в словаре
-            doc_dict["photo_url"] = "" 
+            doc_dict["photo_url"] = ""
             doc_dict["experience"] = "от 5 лет"
-            doc_dict["description"] = "Высококвалифицированный специалист клиники «ЯСНО ВИЖУ». Проводит диагностику и подбор лечения."
+            doc_dict["description"] = (
+                "Высококвалифицированный специалист клиники «ЯСНО ВИЖУ». Проводит диагностику и подбор лечения."
+            )
             doc_dict["prodoctorov_url"] = ""
-            
+
         enriched_list.append(doc_dict)
-        
+
     return enriched_list
+
 
 def _norm(name: str) -> str:
     return name.replace("ё", "е").lower().strip()
