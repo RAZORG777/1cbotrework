@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  CI:
+    name: CI (${{ matrix.bot }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        bot: [telegram_bot, max_bot]
+    defaults:
+      run:
+        working-directory: ${{ matrix.bot }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+          cache: pip
+          cache-dependency-path: ${{ matrix.bot }}/requirements*.txt
+      - name: Install
+        run: pip install -r requirements-dev.txt
+      - name: Lint
+        run: |
+          ruff check .
+          ruff format --check .
+      - name: Tests
+        run: pytest -q
+      - name: No secrets or patient data in git
+        working-directory: .
+        run: |
+          if git ls-files | grep -Ei '(^|/)\.env$|\.key$|\.crt$|\.pem$|\.db$|\.log$|\.7z$|\.cf$|\.exe$'; then
+            echo "::error::В репозитории файлы, которым там не место"; exit 1
+          fi

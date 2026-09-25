@@ -14,6 +14,7 @@
 | `branch`, `doctor_id`, `doctor_name`, `service_id`, `service_name` | str | как сейчас |
 | `visit_at` | datetime (Europe/Moscow) | вычисляется из `date` + `time` 1С; заменяет строковые `date` и `time` |
 | `first_name`, `last_name`, `middle_name`, `phone`, `birth_date` | str | ПДн, нужны для текстов уведомлений и переноса; удаляются вместе со строкой |
+| `notify` | bool | пациент согласился на напоминания (чекбокс «Напоминать о визите»); учитывается и при восстановлении заданий после перезапуска |
 | `status` | str | `active` \| `cancelled` \| `finished` |
 | `created_at` | datetime | |
 | `closed_at` | datetime, null | от него считается срок хранения; null, пока `active` |
@@ -58,7 +59,7 @@ cancelled                     finished
 
 | id | Когда | Аргументы |
 |----|-------|-----------|
-| `rem24h_{appointment_id}` | `visit_at − 24 ч` | chat id, текст (MAX: + клавиатура) |
+| `rem24h_{appointment_id}` | `visit_at − 24 ч` | chat id, текст (MAX: + клавиатура); только при `notify` |
 | `rem2h_{appointment_id}` | `visit_at − 2 ч` | chat id, текст |
 | `feedback_{appointment_id}` | `finish + 20 мин` | chat id, текст |
 | `retention_cleanup` | ежедневно 03:30 MSK + при старте | — |
