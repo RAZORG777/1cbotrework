@@ -23,6 +23,7 @@ bot_logs.txt
 
 # Резервные копии
 *.bak
+*.bak-*
 * — копия*
 
 # Python
