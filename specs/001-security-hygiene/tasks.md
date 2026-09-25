@@ -41,8 +41,8 @@ description: "Task list for 001-security-hygiene"
 - [ ] T004 [P] Создать каркас `max_bot/` так же; `git mv max_bot/max_index.html max_bot/static/index.html`, `max_bot/Логотип.png` → `max_bot/static/`, `max_bot/1raz.py` → `max_bot/scripts/set_menu_button.py`
 - [ ] T005 [P] Создать `telegram_bot/requirements.txt` с фиксированными версиями (fastapi, uvicorn, httpx, sqlalchemy 2, apscheduler 3, loguru, pydantic 2, pydantic-settings), `telegram_bot/requirements-dev.txt` (`-r requirements.txt` + pytest, pytest-asyncio, respx, time-machine, ruff) и `telegram_bot/pyproject.toml` с настройками ruff (line-length 100) и pytest (`asyncio_mode = "auto"`, `testpaths = ["tests"]`)
 - [ ] T006 [P] То же для `max_bot/requirements.txt`, `max_bot/requirements-dev.txt`, `max_bot/pyproject.toml`
-- [ ] T007 [P] Создать `telegram_bot/.env.example` со всеми переменными из research.md › R10 и комментариями, без реальных значений
-- [ ] T008 [P] Создать `max_bot/.env.example` так же (`MAX_API_URL=https://platform-api2.max.ru`, `MAX_WEBHOOK_SECRET`, `MAX_MINIAPP` — ссылка/идентификатор мини-приложения)
+- [ ] T007 [P] Создать `telegram_bot/.env.example` со всеми переменными из research.md › R10 и комментариями, без реальных значений; `PD_POLICY_URL=https://yasno-vizhu.com/docs/Согласие_на_обработку_персональных_данных.pdf`
+- [ ] T008 [P] Создать `max_bot/.env.example` так же (`MAX_API_URL=https://platform-api2.max.ru`, `PD_POLICY_URL` как у Telegram, `MAX_WEBHOOK_SECRET`, `MAX_MINIAPP` — ссылка/идентификатор мини-приложения)
 
 ---
 
@@ -161,7 +161,7 @@ description: "Task list for 001-security-hygiene"
 
 - [ ] T061 [P] [US3] В `telegram_bot/app/auth.py` добавить зависимости `require_onec_secret` (`X-Bot-Secret`), `require_tg_webhook_secret`, `require_admin` (Basic из `ADMIN_USERNAME`/`ADMIN_PASSWORD`, `compare_digest`, WARN в журнал при неудаче); в `telegram_bot/app/db.py` — `mark_processed(session, key) -> bool`
 - [ ] T062 [P] [US3] То же в `max_bot/app/auth.py` (`require_max_webhook_secret` по `X-Max-Bot-Api-Secret`) и `max_bot/app/db.py`
-- [ ] T063 [US3] Выгрузить в `onec/` код 1С, который отправляет `cancel-visit`/`finish-visit` (модуль документа «Заявка» или подписка на событие), добавить в эти вызовы заголовок `X-Bot-Secret` со значением из константы/регистра настроек и отдельными секретами для Telegram и MAX; применить в тестовой УМЦ (contracts/onec-signals.md, принцип II)
+- [ ] T063 [US3] Найти в конфигурации УМЦ код, который отправляет `cancel-visit`/`finish-visit` (в HTTP-сервисе и модуле объекта «Заявка» его нет — искать глобальным поиском по «cancel-visit» в расширениях и общих модулях с подписками на события), выгрузить его в `onec/`, добавить в эти вызовы заголовок `X-Bot-Secret` со значением из константы/регистра настроек и отдельными секретами для Telegram и MAX; применить в тестовой УМЦ (contracts/onec-signals.md, принцип II)
 - [ ] T064 [US3] Подключить `require_onec_secret` и идемпотентность (`onec:{type}:{id}`) в `telegram_bot/app/routes/internal.py`; унифицировать ответы по contracts/onec-signals.md
 - [ ] T065 [US3] То же в `max_bot/app/routes/internal.py`
 - [ ] T066 [US3] В `telegram_bot/app/routes/webhook.py` подключить `require_tg_webhook_secret` и идемпотентность (`tg:{update_id}`); `/stats` — только число активных записей и заданий; `callback_query` → `answerCallbackQuery`
