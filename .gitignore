@@ -1,0 +1,42 @@
+# Секреты
+.env
+.env.*
+!.env.example
+*.key
+*.crt
+*.pem
+chain.txt
+
+# Данные пациентов и логи
+*.db
+*.db-journal
+*.sqlite*
+logs/
+*.log
+bot_logs.txt
+
+# Архивы и бинарники
+*.7z
+*.zip
+*.rar
+*.exe
+
+# Резервные копии
+*.bak
+* — копия*
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Node / сборка WebApp
+node_modules/
+dist/
+
+# IDE
+.vscode/
+.idea/
