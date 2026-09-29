@@ -12,6 +12,7 @@ from ..db import mark_processed, now_msk, session_scope
 from ..doctors_enricher import find_prodoctorov_url
 from ..models import STATUS_ACTIVE, STATUS_CANCELLED, STATUS_FINISHED, Appointment, ProcessedEvent
 from ..reminders import remove_reminders, schedule_feedback
+from .webapp import user_cancelling
 
 router = APIRouter(prefix="/api/v1/internal", dependencies=[Depends(require_onec_secret)])
 
@@ -66,6 +67,12 @@ async def cancel_visit(signal: Signal, request: Request, background: BackgroundT
         appt.closed_at = now_msk()
         chat_id = appt.user_id
     remove_reminders(state.scheduler, signal.appointment_id)
+    if signal.appointment_id in user_cancelling(state):
+        # Отменил сам пациент (форма или кнопка напоминания): ему уже ответил бот.
+        logger.info(
+            "Сигнал 1С cancel-visit на отмену пациента: appointment_id={}", signal.appointment_id
+        )
+        return {"status": "success"}
     text = (
         "😔 <b>Ваша запись была отменена нашими администраторами.</b>\n\n"
         "Вы всегда можете записаться заново через меню! 🏥"

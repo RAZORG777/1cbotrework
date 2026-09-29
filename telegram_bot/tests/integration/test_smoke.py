@@ -13,6 +13,4 @@ async def test_doctors_proxied_from_onec(client, mocks):
     assert mocks["doctors"].called
 
 
-async def test_index_served(client):
-    r = await client.get("/")
-    assert r.status_code == 200 and "<html" in r.text.lower()
+# Выдача формы из сборки — tests/contract/test_webapp_stage3.py (не зависит от npm run build).

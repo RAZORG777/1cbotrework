@@ -384,6 +384,20 @@ async def reschedule(
     return {"status": "success", "appointment_id": new_id}
 
 
+def user_cancelling(state) -> set[str]:
+    """Записи, которые сейчас отменяет сам пациент.
+
+    1С присылает сигнал cancel-visit ещё до ответа на запрос отмены; по этому множеству
+    обработчик сигнала понимает, что отменил пациент, и не пишет «отменена администраторами».
+    Бот работает одним процессом (NSSM, uvicorn без воркеров), поэтому хватает памяти процесса.
+    """
+    marks = getattr(state, "user_cancelling", None)
+    if marks is None:
+        marks = set()
+        state.user_cancelling = marks
+    return marks
+
+
 async def cancel_for_user(state, user_id: str) -> JSONResponse | dict:
     """Отмена активной записи пользователя (используется формой и кнопками)."""
     with session_scope(state.session_factory) as session:
@@ -391,17 +405,22 @@ async def cancel_for_user(state, user_id: str) -> JSONResponse | dict:
         if appt is None:
             return error("NOT_FOUND", "Запись не найдена.", 404)
         appointment_id = appt.appointment_id
+    marks = user_cancelling(state)
+    marks.add(appointment_id)
     try:
-        response = await state.onec.cancel_booking(appointment_id)
-    except OneCError:
-        return unavailable()
-    if response.get("status") != "success":
-        return onec_refusal(response, user_id)
-    with session_scope(state.session_factory) as session:
-        appt = active_for(session, user_id)
-        if appt is not None:
-            appt.status = STATUS_CANCELLED
-            appt.closed_at = now_msk()
+        try:
+            response = await state.onec.cancel_booking(appointment_id)
+        except OneCError:
+            return unavailable()
+        if response.get("status") != "success":
+            return onec_refusal(response, user_id)
+        with session_scope(state.session_factory) as session:
+            appt = active_for(session, user_id)
+            if appt is not None:
+                appt.status = STATUS_CANCELLED
+                appt.closed_at = now_msk()
+    finally:
+        marks.discard(appointment_id)
     remove_reminders(state.scheduler, appointment_id)
     logger.info("Отменена пациентом: user_id={} appointment_id={}", user_id, appointment_id)
     return {"status": "success", "appointment_id": appointment_id}
