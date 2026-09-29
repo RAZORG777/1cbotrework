@@ -2,6 +2,7 @@
 import { PhMapPin } from '@phosphor-icons/vue'
 import logo from '@/assets/logo.png'
 import StepProgress from '@/components/StepProgress.vue'
+import ThemeSwitch from '@/components/ThemeSwitch.vue'
 import { BRANCHES, type BranchInfo } from '@/lib/branches'
 import { CLINIC_PHONE, CLINIC_PHONE_HREF } from '@/lib/errors'
 import { platform } from '@/platform'
@@ -52,6 +53,7 @@ function pick(b: BranchInfo) {
     </section>
 
     <div class="flex-1" />
+    <ThemeSwitch />
     <p class="m-0 text-center text-[15px] text-muted">
       Вопросы по записи:
       <a :href="CLINIC_PHONE_HREF" class="inline-flex min-h-11 items-center font-semibold no-underline tabular-nums">{{ CLINIC_PHONE }}</a>

@@ -42,7 +42,7 @@ function pick(s: ServiceItem) {
       </div>
     </div>
 
-    <h1 class="m-0 text-2xl font-bold tracking-[-0.01em]">С чем придёте?</h1>
+    <h1 class="m-0 text-2xl font-bold tracking-[-0.01em]">Выбор услуги</h1>
 
     <SkeletonRows v-if="loader.loading.value" :rows="4" />
     <ErrorState v-else-if="loader.error.value" @retry="loader.load()" />

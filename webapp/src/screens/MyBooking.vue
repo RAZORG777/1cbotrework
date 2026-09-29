@@ -4,6 +4,7 @@ import { computed, ref } from 'vue'
 import { api } from '@/api/client'
 import Banner from '@/components/Banner.vue'
 import SendingDots from '@/components/SendingDots.vue'
+import ThemeSwitch from '@/components/ThemeSwitch.vue'
 import { branchInfo } from '@/lib/branches'
 import { CLINIC_PHONE, CLINIC_PHONE_HREF, classify, GENERAL_MESSAGE } from '@/lib/errors'
 import { shortDate } from '@/lib/format'
@@ -185,5 +186,9 @@ function bookAgain() {
         <button type="button" class="press anim-rise delay-2 h-[52px] rounded-box bg-accent text-[17px] font-semibold text-on-accent" @click="bookAgain">Записаться снова</button>
       </div>
     </template>
+
+    <div class="mt-3 border-t border-line pt-4">
+      <ThemeSwitch />
+    </div>
   </div>
 </template>

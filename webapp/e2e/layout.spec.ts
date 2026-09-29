@@ -45,7 +45,7 @@ for (const scheme of SCHEMES) {
         await page.getByRole('tab', { name: 'Врачи' }).click()
 
         await page.getByRole('button', { name: /Иванова/ }).click()
-        await expect(page.getByRole('heading', { name: 'С чем придёте?' })).toBeVisible()
+        await expect(page.getByRole('heading', { name: 'Выбор услуги' })).toBeVisible()
         await check(page, ctx, tag, '2b-usluga-vracha')
         await page.getByRole('button', { name: /Консультация офтальмолога/ }).click()
 

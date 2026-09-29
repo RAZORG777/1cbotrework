@@ -18,6 +18,7 @@ import Time from '@/screens/Time.vue'
 import { back, booking, root, top, type Screen } from '@/state/booking'
 import { loadPatients } from '@/state/patients'
 import { onAccessError, refreshActive } from '@/state/session'
+import { effectiveScheme, loadThemePref, themePref } from '@/state/theme'
 import { mainButton } from '@/state/ui'
 
 const SCREENS: Record<Exclude<Screen, 'loading'>, Component> = {
@@ -37,9 +38,9 @@ const screen = computed(() => top())
 const current = computed(() => (screen.value === 'loading' ? null : SCREENS[screen.value]))
 const canBack = computed(() => booking.stack.length > 1 && !['success', 'access'].includes(screen.value))
 
-// --- Тема мессенджера (FR-014) ---
+// --- Тема: как в мессенджере (FR-014) или выбранная пациентом ---
 function applyTheme() {
-  const scheme = p.colorScheme()
+  const scheme = effectiveScheme()
   document.documentElement.dataset.theme = scheme
   const css = getComputedStyle(document.documentElement)
   const v = (n: string) => css.getPropertyValue(n).trim()
@@ -56,7 +57,9 @@ function applyTheme() {
   if (mb) p.setMainButton(mb.state, mb.onClick)
 }
 applyTheme()
-p.onColorSchemeChange(applyTheme)
+p.onColorSchemeChange(() => themePref.value === 'auto' && applyTheme())
+watch(themePref, applyTheme)
+loadThemePref().catch(() => undefined)
 
 // --- Кнопки мессенджера ---
 watch(mainButton, (mb) => p.setMainButton(mb ? mb.state : null, mb ? mb.onClick : null), { immediate: true })

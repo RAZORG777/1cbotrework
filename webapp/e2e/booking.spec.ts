@@ -7,7 +7,7 @@ test('запись по врачу: филиал → врач → услуга �
 
   await expect(page.getByText('Шаг 2 из 4')).toBeVisible()
   await page.getByRole('button', { name: /Иванова Анна Сергеевна/ }).click()
-  await expect(page.getByRole('heading', { name: 'С чем придёте?' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Выбор услуги' })).toBeVisible()
   await expect(page.getByText('Повторный приём')).toBeVisible()
   await page.getByRole('button', { name: /Консультация офтальмолога/ }).click()
 
