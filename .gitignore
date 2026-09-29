@@ -54,3 +54,11 @@ _1c_dump/
 
 # Пакеты коммитов для переноса
 *.bundle
+
+# Сборки WebApp (этап 3) — собираются deploy.ps1
+telegram_bot/static/app/
+max_bot/static/app/
+webapp/dist/
+webapp/e2e/screenshots/
+webapp/test-results/
+webapp/playwright-report/

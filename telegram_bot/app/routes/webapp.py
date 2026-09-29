@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from loguru import logger
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
@@ -22,7 +22,8 @@ from ..patient import normalize_birth_date, normalize_phone
 from ..reminders import remove_reminders, schedule_reminders
 
 router = APIRouter()
-STATIC_DIR = BASE_DIR / "static"
+# Сборка формы (webapp/, этап 3): npm run build кладёт её в static/app.
+APP_DIR = BASE_DIR / "static" / "app"
 BRANCH_LINK = "https://yasno-vizhu.com/contacts/"
 MAP_LINK = "https://yandex.ru/maps/"
 
@@ -58,6 +59,12 @@ class BookingRequest(BaseModel):
     send_notifications: bool = True
     pd_consent: bool = False
     old_appointment_id: str | None = None
+
+
+class RescheduleRequest(BookingRequest):
+    """Перенос: данные пациента можно не передавать — берутся из активной записи (этап 3, R7)."""
+
+    patient: Patient | None = None
 
 
 def error(code: str, message: str, status: int = 200) -> JSONResponse:
@@ -124,7 +131,25 @@ def active_for(session, user_id: str) -> Appointment | None:
     return appt
 
 
-def onec_payload(req: BookingRequest) -> dict:
+def stored_patient(appt: Appointment) -> dict:
+    """Данные пациента из записи бота — для переноса без повторного ввода."""
+
+    def safe(fn, value: str) -> str:
+        try:
+            return fn(value)
+        except ValueError:
+            return value
+
+    return {
+        "first_name": appt.first_name or "",
+        "last_name": appt.last_name or "",
+        "middle_name": appt.middle_name or "",
+        "phone": safe(normalize_phone, appt.phone or ""),
+        "birth_date": safe(normalize_birth_date, appt.birth_date or ""),
+    }
+
+
+def onec_payload(req: BookingRequest, patient: dict | None = None) -> dict:
     payload = {
         "branch": req.branch,
         "doctor_id": req.doctor_id,
@@ -133,7 +158,7 @@ def onec_payload(req: BookingRequest) -> dict:
         "service_name": req.service_name,
         "date": req.date,
         "time": req.time,
-        "patient": req.patient.model_dump(),
+        "patient": patient if patient is not None else req.patient.model_dump(),
         "platform": "telegram",
     }
     if req.old_appointment_id:
@@ -149,12 +174,13 @@ def fill(appt: Appointment, req: BookingRequest, appointment_id: str) -> None:
     appt.service_id = req.service_id
     appt.service_name = req.service_name
     appt.visit_at = datetime.strptime(f"{req.date} {req.time}", "%Y-%m-%d %H:%M")
-    appt.first_name = req.patient.first_name
-    appt.last_name = req.patient.last_name
-    appt.middle_name = req.patient.middle_name
-    appt.phone = req.patient.phone
-    appt.birth_date = req.patient.birth_date
-    appt.notify = req.send_notifications
+    if req.patient is not None:
+        appt.first_name = req.patient.first_name
+        appt.last_name = req.patient.last_name
+        appt.middle_name = req.patient.middle_name
+        appt.phone = req.patient.phone
+        appt.birth_date = req.patient.birth_date
+        appt.notify = req.send_notifications
     appt.confirmed_at = None  # перенос: подтверждать заново (этап 2)
 
 
@@ -168,13 +194,15 @@ def consent_required() -> JSONResponse:
 
 
 @router.get("/", include_in_schema=False)
-async def index() -> FileResponse:
-    return FileResponse(STATIC_DIR / "index.html")
-
-
-@router.get("/Логотип.png", include_in_schema=False)
-async def logo() -> FileResponse:
-    return FileResponse(STATIC_DIR / "Логотип.png")
+async def index():
+    page = APP_DIR / "index.html"
+    if not page.is_file():
+        return PlainTextResponse(
+            "Форма не собрана: выполните npm ci && npm run build в каталоге webapp.",
+            status_code=503,
+        )
+    # Сам index не кэшируется: после выкладки сразу подхватываются новые ассеты с хэшами.
+    return FileResponse(page, headers={"Cache-Control": "no-cache"})
 
 
 @router.get("/config")
@@ -244,8 +272,11 @@ async def my_appointment(request: Request, user: WebAppUser = Depends(current_us
                 "branch": appt.branch,
                 "date": appt.date_str,
                 "time": appt.time_str,
+                "doctor_id": appt.doctor_id,
                 "doctor_name": appt.doctor_name,
+                "service_id": appt.service_id,
                 "service_name": appt.service_name,
+                "confirmed": appt.confirmed_at is not None,
             },
         }
 
@@ -302,12 +333,13 @@ async def book(
 
 @router.post("/reschedule")
 async def reschedule(
-    req: BookingRequest,
+    req: RescheduleRequest,
     request: Request,
     background: BackgroundTasks,
     user: WebAppUser = Depends(current_user),
 ):
-    if not req.pd_consent:
+    # Согласие нужно, только если форма прислала новые данные пациента.
+    if req.patient is not None and not req.pd_consent:
         return consent_required()
     state = request.app.state
     with session_scope(state.session_factory) as session:
@@ -319,10 +351,11 @@ async def reschedule(
         ):
             return error("NOT_FOUND", "Активная запись не найдена.", 404)
         old_id = appt.appointment_id
+        patient = req.patient.model_dump() if req.patient is not None else stored_patient(appt)
 
     logger.info("Перенос: user_id={} appointment_id={}", user.id, old_id)
     try:
-        response = await state.onec.reschedule(onec_payload(req))
+        response = await state.onec.reschedule(onec_payload(req, patient))
     except OneCError:
         return unavailable()
     if response.get("status") != "success":
@@ -340,7 +373,7 @@ async def reschedule(
     schedule_reminders(state.scheduler, appt, now)
 
     date_s = datetime.strptime(req.date, "%Y-%m-%d").strftime("%d.%m.%Y")
-    fio = f"{req.patient.first_name} {req.patient.middle_name}".strip()
+    fio = f"{patient['first_name']} {patient['middle_name']}".strip()
     text = (
         f"🔄 {fio}\nВаша запись успешно <b>перенесена</b>!\n\n"
         f"Новая дата: <b>{date_s}</b>\nВремя: <b>{req.time}</b>\n"

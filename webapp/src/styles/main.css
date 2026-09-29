@@ -1,0 +1,409 @@
+@import "tailwindcss";
+@import "@fontsource-variable/onest/index.css";
+
+/* Токены «Ясно Вижу» (холст «Токены»). Тема переключается атрибутом data-theme на <html>. */
+:root {
+  --c-bg: #f3f6f5;
+  --c-chrome: #e9efee;
+  --c-surface: #fbfcfc;
+  --c-ink: #0f2e2a;
+  --c-ink-2: #3f5754;
+  --c-muted: #4b6461;
+  --c-line: #dae4e2;
+  --c-line-strong: #c9d6d3;
+  --c-divider: #e4ecea;
+  --c-accent: #1d7a70;
+  --c-accent-hover: #155e56;
+  --c-on-accent: #f4fbfa;
+  --c-accent-soft: #d2eee9;
+  --c-accent-tint: #e2f2ef;
+  --c-accent-tint-line: #bfe0da;
+  --c-danger: #b42318;
+  --c-danger-fill: #b42318;
+  --c-on-danger: #fff6f5;
+  --c-danger-ink: #8a1c12;
+  --c-danger-soft: #5c3b37;
+  --c-danger-tint: #fceeec;
+  --c-danger-line: #f0c6c1;
+  --c-taken-line: #d9a39d;
+  --c-disabled-bg: #d3dedb;
+  --c-disabled-ink: #5e7471;
+  --c-faint: #8a9d9a;
+  --c-track: #d3dedb;
+  --c-skeleton: #e1e9e7;
+  --c-skeleton-hi: #edf3f1;
+  --c-pill: #eef1f0;
+  --c-focus: #0f2e2a;
+  --c-segment: #e3ebe9;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --c-bg: #0e1816;
+  --c-chrome: #15201e;
+  --c-surface: #152220;
+  --c-ink: #e4eeec;
+  --c-ink-2: #bfd0cc;
+  --c-muted: #a3b8b4;
+  --c-line: #253a36;
+  --c-line-strong: #33504b;
+  --c-divider: #22342f;
+  --c-accent: #5cc9ba;
+  --c-accent-hover: #7ed6ca;
+  --c-on-accent: #06231f;
+  --c-accent-soft: #0c3a33;
+  --c-accent-tint: #173a35;
+  --c-accent-tint-line: #245049;
+  --c-danger: #ff8a80;
+  --c-danger-fill: #e5655a;
+  --c-on-danger: #2a0b08;
+  --c-danger-ink: #ffb4ab;
+  --c-danger-soft: #f4d5d2;
+  --c-danger-tint: #3a1d1b;
+  --c-danger-line: #6e2c27;
+  --c-taken-line: #6e2c27;
+  --c-disabled-bg: #22342f;
+  --c-disabled-ink: #8aa19d;
+  --c-faint: #5e7773;
+  --c-track: #2a423e;
+  --c-skeleton: #1c2b28;
+  --c-skeleton-hi: #243632;
+  --c-pill: #1c2b28;
+  --c-focus: #e4eeec;
+  --c-segment: #1c2b28;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --font-sans: "Onest Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --color-bg: var(--c-bg);
+  --color-chrome: var(--c-chrome);
+  --color-surface: var(--c-surface);
+  --color-ink: var(--c-ink);
+  --color-ink-2: var(--c-ink-2);
+  --color-muted: var(--c-muted);
+  --color-line: var(--c-line);
+  --color-line-strong: var(--c-line-strong);
+  --color-divider: var(--c-divider);
+  --color-accent: var(--c-accent);
+  --color-accent-hover: var(--c-accent-hover);
+  --color-on-accent: var(--c-on-accent);
+  --color-accent-soft: var(--c-accent-soft);
+  --color-accent-tint: var(--c-accent-tint);
+  --color-accent-tint-line: var(--c-accent-tint-line);
+  --color-danger: var(--c-danger);
+  --color-danger-fill: var(--c-danger-fill);
+  --color-on-danger: var(--c-on-danger);
+  --color-danger-ink: var(--c-danger-ink);
+  --color-danger-soft: var(--c-danger-soft);
+  --color-danger-tint: var(--c-danger-tint);
+  --color-danger-line: var(--c-danger-line);
+  --color-taken-line: var(--c-taken-line);
+  --color-disabled-bg: var(--c-disabled-bg);
+  --color-disabled-ink: var(--c-disabled-ink);
+  --color-faint: var(--c-faint);
+  --color-track: var(--c-track);
+  --color-skeleton: var(--c-skeleton);
+  --color-pill: var(--c-pill);
+  --color-segment: var(--c-segment);
+  --radius-box: 14px;
+  --radius-chip: 12px;
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  html,
+  body {
+    background: var(--c-bg);
+    color: var(--c-ink);
+    font-family: var(--font-sans);
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    overscroll-behavior-y: none;
+  }
+  body {
+    margin: 0;
+    font-size: 17px;
+    line-height: 1.45;
+    transition: background-color 200ms ease-out, color 200ms ease-out;
+  }
+  button,
+  input {
+    font: inherit;
+    color: inherit;
+  }
+  button {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: default;
+  }
+  :focus-visible {
+    outline: 3px solid var(--c-focus);
+    outline-offset: 2px;
+  }
+  a {
+    color: var(--c-accent);
+  }
+}
+
+/* --- Движение (доски «Анимации»). Длительности 100–450 мс, без пружин. --- */
+.press {
+  transition:
+    background-color 160ms ease-out,
+    color 160ms ease-out,
+    border-color 160ms ease-out,
+    opacity 220ms ease-out,
+    transform 100ms ease-out;
+}
+.press:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* Переходы шагов: вперёд — справа, назад — слева. */
+.step-fwd-enter-active,
+.step-back-enter-active {
+  transition:
+    opacity 260ms var(--ease-out-quint),
+    transform 260ms var(--ease-out-quint);
+}
+.step-fwd-leave-active,
+.step-back-leave-active {
+  transition: opacity 120ms ease-out;
+  position: absolute;
+  inset: 0;
+}
+.step-fwd-enter-from {
+  opacity: 0;
+  transform: translateX(24px);
+}
+.step-back-enter-from {
+  opacity: 0;
+  transform: translateX(-24px);
+}
+.step-fwd-leave-to,
+.step-back-leave-to {
+  opacity: 0;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes drop {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes draw {
+  from {
+    stroke-dashoffset: 22;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes fill-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+@keyframes blink {
+  0%,
+  84%,
+  100% {
+    transform: scaleY(1);
+  }
+  90% {
+    transform: scaleY(0.08);
+  }
+}
+@keyframes look {
+  0%,
+  40% {
+    transform: translateX(0);
+  }
+  50%,
+  70% {
+    transform: translateX(2px);
+  }
+  80%,
+  100% {
+    transform: translateX(0);
+  }
+}
+@keyframes dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.35;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+@keyframes ring {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--c-danger) 45%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 12px color-mix(in srgb, var(--c-danger) 0%, transparent);
+  }
+}
+
+.anim-rise {
+  animation: rise 380ms var(--ease-out-quint) both;
+}
+.anim-drop {
+  animation: drop 300ms var(--ease-out-quint) both;
+}
+.anim-fade {
+  animation: fade 240ms ease-out both;
+}
+.anim-pop {
+  animation: pop 460ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.anim-draw {
+  stroke-dasharray: 22;
+  animation: draw 360ms 200ms cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+.anim-fill {
+  transform-origin: left center;
+  animation: fill-x 420ms 80ms var(--ease-out-quint) both;
+}
+.anim-ring {
+  animation: ring 700ms ease-out 1;
+}
+.delay-1 {
+  animation-delay: 60ms;
+}
+.delay-2 {
+  animation-delay: 120ms;
+}
+.delay-3 {
+  animation-delay: 180ms;
+}
+.delay-4 {
+  animation-delay: 240ms;
+}
+.delay-5 {
+  animation-delay: 300ms;
+}
+.success .delay-1 {
+  animation-delay: 280ms;
+}
+.success .delay-2 {
+  animation-delay: 340ms;
+}
+.success .delay-3 {
+  animation-delay: 400ms;
+}
+.success .delay-4 {
+  animation-delay: 460ms;
+}
+.success .delay-5 {
+  animation-delay: 520ms;
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--c-skeleton) 30%, var(--c-skeleton-hi) 50%, var(--c-skeleton) 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+.eye-lid {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: blink 2.6s ease-in-out infinite;
+}
+.eye-pupil {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: look 2.6s ease-in-out infinite;
+}
+.dot {
+  animation: dot 1s ease-in-out infinite;
+}
+.dot:nth-child(2) {
+  animation-delay: 150ms;
+}
+.dot:nth-child(3) {
+  animation-delay: 300ms;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .step-fwd-enter-from,
+  .step-back-enter-from {
+    transform: none;
+  }
+  .anim-rise,
+  .anim-drop,
+  .anim-pop {
+    animation-name: fade;
+    animation-duration: 150ms;
+  }
+  .anim-draw {
+    animation: none;
+    stroke-dasharray: none;
+  }
+  .anim-fill,
+  .anim-ring,
+  .skeleton,
+  .eye-lid,
+  .eye-pupil,
+  .dot {
+    animation: none;
+  }
+  .press:active:not(:disabled) {
+    transform: none;
+  }
+  body {
+    transition: none;
+  }
+}

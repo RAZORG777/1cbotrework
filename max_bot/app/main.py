@@ -9,6 +9,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from loguru import logger
 from sqlalchemy import select
 
@@ -98,6 +99,12 @@ def create_app(
             {"status": "error", "error": "VALIDATION_ERROR", "fields": fields}, status_code=422
         )
 
+    # Ассеты сборки формы (имена с хэшем). Без сборки бот стартует, GET /max отвечает 503.
+    app.mount(
+        "/max/assets",
+        StaticFiles(directory=webapp.APP_DIR / "assets", check_dir=False),
+        name="webapp-assets",
+    )
     for module in (health, webapp, internal, webhook, admin):
         app.include_router(module.router, prefix="/max")
     return app

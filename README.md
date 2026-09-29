@@ -14,10 +14,11 @@
 ```text
 telegram_bot/        Telegram-бот (порт 8001)
   app/               FastAPI: config, auth, db, models, onec_client, messenger, reminders, routes/
-  static/            WebApp (index.html) и логотип
+  static/app/        сборка формы записи (из webapp/, в git не хранится)
   scripts/           register_webhook.py, send_onec_signal.py
   tests/             unit / contract / integration (pytest, заглушки 1С и Telegram)
 max_bot/             MAX-бот (порт 8002, все пути под /max) — та же раскладка, свой код
+webapp/              форма записи: Vite + Vue 3 + TypeScript + Tailwind, сборка на каждый бот
 onec/                код 1С: HTTP-сервис, модуль «Заявки», расширение Бот_Интеграция
 deploy/              install-services.ps1, deploy.ps1 (Windows + NSSM)
 docs/, specs/        план, контракт, спецификации Spec Kit
@@ -39,12 +40,27 @@ python -m app.main
 
 Без обязательных переменных бот не запустится и сообщит, каких не хватает.
 
+Форма записи собирается отдельно (нужен Node.js 22 LTS):
+
+```bash
+cd webapp
+npm ci
+npm run build        # → telegram_bot/static/app и max_bot/static/app
+npm run dev          # разработка; вне мессенджера форма покажет «Откройте запись через бота»
+```
+
+Без сборки бот работает, но `GET /` (`/max/`) отвечает 503 «Форма не собрана».
+
 ## Тесты и проверки
 
 ```bash
 ruff check . && ruff format --check .
 pytest -q
 ```
+
+Форма: `cd webapp && npm run typecheck && npm test && npm run build && npm run e2e`
+(Playwright идёт по обеим сборкам с заглушками SDK и API, снимки экранов 320/390/430 px в светлой
+и тёмной теме — в `webapp/e2e/screenshots/`).
 
 Тесты не обращаются к настоящей 1С и мессенджерам. На каждый PR их запускает GitHub Actions
 (`.github/workflows/ci.yml`). Мерж в `main` возможен только при зелёном CI: включите в GitHub
@@ -78,6 +94,9 @@ Settings → Branches → Branch protection для `main` обязательну
    медкарт») и филиал по умолчанию пользователя `api_bot`, затем выложить ботов. 1С принимает
    и старые форматы данных, поэтому порядок безопасен.
 
+9. **Этап 3 (новая форма).** На сервер нужен Node.js 22 LTS: `deploy.ps1` собирает форму сам.
+   Старые `static/index.html` и логотип удалены, форма берётся из `static/app`.
+
 Порядок: сначала тестовые боты и тестовая копия УМЦ, потом прод
 ([quickstart](specs/001-security-hygiene/quickstart.md)).
 
@@ -87,7 +106,8 @@ Settings → Branches → Branch protection для `main` обязательну
 .\deploy\deploy.ps1 -NssmPath C:\tools\nssm.exe
 ```
 
-Скрипт выполняет `git pull --ff-only`, ставит зависимости, перезапускает обе службы и проверяет
+Скрипт выполняет `git pull --ff-only`, собирает форму (`npm ci && npm run build` в `webapp/`,
+пропустить — `-SkipWebApp`), ставит зависимости, перезапускает обе службы и проверяет
 `/healthz` и `/max/healthz`. Если проверка не прошла, скрипт завершается с ненулевым кодом.
 
 ## Администрирование

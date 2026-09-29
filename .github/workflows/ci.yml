@@ -41,3 +41,37 @@ jobs:
           if git ls-files | grep -Ei '(^|/)\.env$|\.key$|\.crt$|\.pem$|\.db$|\.log$|\.7z$|\.cf$|\.exe$'; then
             echo "::error::В репозитории файлы, которым там не место"; exit 1
           fi
+
+  webapp:
+    name: CI (webapp)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: webapp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: webapp/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+      - name: Build (Telegram и MAX)
+        run: npm run build
+      - name: E2E (Playwright)
+        run: |
+          npx playwright install --with-deps chromium
+          npm run e2e
+      - name: Скриншоты экранов
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: webapp-screenshots
+          path: webapp/e2e/screenshots/
+          retention-days: 7

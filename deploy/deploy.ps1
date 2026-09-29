@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-  Выкладка: git pull → зависимости → перезапуск служб → проверка /healthz.
+  Выкладка: git pull → сборка WebApp → зависимости → перезапуск служб → проверка /healthz.
 .EXAMPLE
   .\deploy\deploy.ps1 -NssmPath C:\tools\nssm.exe
 #>
@@ -8,7 +8,8 @@ param(
     [string]$NssmPath = "nssm.exe",
     [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
     [int]$HealthTimeoutSec = 30,
-    [switch]$SkipPull
+    [switch]$SkipPull,
+    [switch]$SkipWebApp
 )
 $ErrorActionPreference = "Stop"
 Set-Location $RepoRoot
@@ -22,6 +23,22 @@ if (-not $SkipPull) {
     Write-Host "git pull --ff-only"
     git pull --ff-only
     if ($LASTEXITCODE -ne 0) { throw "git pull не выполнен (есть локальные изменения или расхождение веток)" }
+}
+
+# Сборка формы записи (этап 3): webapp/ → telegram_bot\static\app и max_bot\static\app.
+if (-not $SkipWebApp) {
+    if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
+        throw "Не найден npm: установите Node.js 22 LTS (https://nodejs.org) и повторите выкладку"
+    }
+    Push-Location (Join-Path $RepoRoot "webapp")
+    try {
+        Write-Host "[webapp] npm ci"
+        npm ci --no-audit --no-fund
+        if ($LASTEXITCODE -ne 0) { throw "npm ci завершился с ошибкой" }
+        Write-Host "[webapp] сборка Telegram и MAX"
+        npm run build
+        if ($LASTEXITCODE -ne 0) { throw "Сборка WebApp завершилась с ошибкой" }
+    } finally { Pop-Location }
 }
 
 foreach ($bot in $bots) {
