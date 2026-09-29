@@ -54,13 +54,15 @@ async def test_welcome_open_app_and_duplicate(client, mocks):
 
 
 async def test_confirm_visit_button(client, mocks):
+    """Прежний payload confirm_visit (сообщения до этапа 2) → метод confirm, не update_note."""
     await client.post("/max/book", json=booking(), headers=auth(5))
     await client.post("/max/webhook", json=callback("cb-1", "confirm_visit"), headers=HDR)
-    note = json.loads(mocks["update_note"].calls.last.request.content)
-    assert note["appointment_id"] == "appt-1"
+    body = json.loads(mocks["confirm"].calls.last.request.content)
+    assert body == {"appointment_id": "appt-1", "platform": "max"}
+    assert not mocks["update_note"].called
     assert mocks["answers"].calls.last.request.url.params["callback_id"] == "cb-1"
     await client.post("/max/webhook", json=callback("cb-1", "confirm_visit"), headers=HDR)
-    assert mocks["update_note"].call_count == 1
+    assert mocks["confirm"].call_count == 1
 
 
 async def test_cancel_button_cancels_own_only(client, mocks):

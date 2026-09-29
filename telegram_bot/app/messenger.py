@@ -68,3 +68,10 @@ class TelegramMessenger:
         if text:
             payload["text"] = text
         await self.call("answerCallbackQuery", payload)
+
+    async def edit_reply_markup(self, chat_id: str, message_id: int | str) -> None:
+        """Убрать кнопки у отправленного сообщения (этап 2)."""
+        await self.call(
+            "editMessageReplyMarkup",
+            {"chat_id": chat_id, "message_id": message_id, "reply_markup": {"inline_keyboard": []}},
+        )

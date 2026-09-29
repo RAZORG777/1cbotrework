@@ -7,7 +7,7 @@
 - Конфигурация: БИТ.Управление медицинским центром 2.0.49.101, платформа 8.3.27.
 - База HTTP-сервиса — переменная `ONEC_URL` ботов; авторизация — Basic (`ONEC_USER`/`ONEC_PASSWORD`).
 - Все ответы — JSON в UTF-8.
-- HTTP-сервис `tgbot` публикуется расширением `TGBotAPI` (роль `TG_ОсновнаяРоль`), а не основной конфигурацией. Его модуль совпадает с `onec/http-service.bsl`; URL-шаблоны: `/ping`, `/specialties`, `/doctors`, `/schedule`, `/book`, `/services/*`, `/cancel`, `/reschedule`, `/update_note`.
+- HTTP-сервис `tgbot` публикуется расширением `TGBotAPI` (роль `TG_ОсновнаяРоль`), а не основной конфигурацией. Его модуль совпадает с `onec/http-service.bsl`; URL-шаблоны: `/ping`, `/specialties`, `/doctors`, `/schedule`, `/book`, `/services/*`, `/cancel`, `/reschedule`, `/update_note`; этап 2 — `/confirm`.
 
 ## 1. Бот → 1С (HTTP-сервис, `onec/http-service.bsl`)
 
@@ -22,6 +22,7 @@
 | `POST reschedule` | `ReschedulePOST` | тело `book` + `old_appointment_id` | как `book`; `appointment_id` — та же заявка | HTTP 200 `{"status":"error","code":"…","error":"…"}` |
 | `POST cancel` | `CancelPOST` | `{"appointment_id"}` | `{"status":"success"}` | HTTP 200 `{"status":"error","error":"…"}` |
 | `POST update_note` | `UpdateNotePOST` | `{"appointment_id","note"}` | `{"status":"success"}` | HTTP 404 (нет заявки), HTTP 500 |
+| `POST confirm` | `ConfirmPOST` | `{"appointment_id","platform"}` | `{"status":"success","appointment_id","already"}` | HTTP 200 `{"status":"error","code":"BAD_REQUEST\|NOT_FOUND\|CANCELLED\|INTERNAL"}` |
 
 Тело `book` / `reschedule`, которое отправляют боты:
 
@@ -60,6 +61,10 @@
   `BAD_BIRTH_DATE` — пациент может исправить, остальное → `ONEC_ERROR`), без `code` — по тексту
   («занято» → `SLOT_TAKEN`).
 - `doctors`/`services` отвечают массивом без обёртки; клиент ботов принимает и `{"data": […]}`.
+- Этап 2 (specs/003-visit-confirmation/contracts/onec-confirm.md): `confirm` дописывает в конец
+  примечания заявки «Пациент подтвердил запись (Telegram|MAX), ДД.ММ ЧЧ:ММ» один раз (повтор —
+  `already: true`), состояние не меняет; отменённая заявка → `CANCELLED`. `update_note` оставлен
+  до выкладки обоих ботов; для подтверждения не используется (конституция 2.1.0).
 - Статус записи в 1С бот выставляет через `BOT_Первичка` / `BOT_Повторка` по названию услуги,
   `Ответственный` — пользователь `api_bot`. По этому признаку расширение отличает заявки бота.
 

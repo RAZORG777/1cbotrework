@@ -11,7 +11,8 @@ from sqlalchemy import func, select
 from ..auth import require_admin
 from ..db import now_msk, session_scope
 from ..logging import log_buffer
-from ..models import Appointment
+from ..models import STATUS_ACTIVE, Appointment
+from ..reminders import send_reminder
 
 router = APIRouter(prefix="/admin")
 
@@ -30,6 +31,11 @@ async def admin_dashboard(request: Request, admin: str = Depends(require_admin))
                 select(Appointment.status, func.count()).group_by(Appointment.status)
             ).all()
         )
+        confirmed = session.scalar(
+            select(func.count())
+            .select_from(Appointment)
+            .where(Appointment.status == STATUS_ACTIVE, Appointment.confirmed_at.is_not(None))
+        )
     now = now_msk()
     jobs_html = ""
     for job in state.scheduler.get_jobs():
@@ -45,6 +51,7 @@ async def admin_dashboard(request: Request, admin: str = Depends(require_admin))
         )
         or "<li>Записей нет</li>"
     )
+    stats += f"<li>активных подтверждено пациентом: <b>{confirmed}</b></li>"
     return f"""<!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><title>Админ-панель Telegram</title>
 <style>
@@ -61,3 +68,12 @@ h2 {{ color: #32a396; border-bottom: 2px solid #32a396; padding-bottom: 5px; }}
   <h3>⚙️ Очередь заданий</h3><ul>{jobs_html or "<li>Нет запланированных задач</li>"}</ul></div>
   <div class="panel"><h3>📝 Журнал</h3><div class="logs">{logs_html}</div></div>
 </div></body></html>"""
+
+
+@router.post("/send-reminder")
+async def admin_send_reminder(
+    appointment_id: str, kind: str = "24h", admin: str = Depends(require_admin)
+) -> dict:
+    """Отправить напоминание сейчас — для проверки кнопок на тестовом стенде (этап 2)."""
+    await send_reminder(appointment_id, "2h" if kind == "2h" else "24h")
+    return {"status": "ok"}

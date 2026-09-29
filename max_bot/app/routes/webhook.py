@@ -1,7 +1,8 @@
 """Вебхук MAX (contracts/messenger-webhooks.md).
 
 Ответ 200 отдаётся сразу, обработка — в фоне (MAX повторяет доставку при долгом ответе).
-Нажатия кнопок приходят событием `message_callback`: payload и пользователь — в `callback`.
+Нажатия кнопок приходят событием `message_callback`: payload и пользователь — в `callback`;
+обработка кнопок напоминания — app/visit_actions.py (этап 2).
 Сырые апдейты в журнал не пишутся.
 """
 
@@ -12,8 +13,7 @@ from loguru import logger
 
 from ..auth import require_max_webhook_secret
 from ..db import mark_processed, session_scope
-from ..onec_client import OneCError
-from .webapp import active_for, cancel_for_user, cancelled_text
+from ..visit_actions import handle_button, parse_callback
 
 router = APIRouter()
 
@@ -46,38 +46,27 @@ async def send_welcome(state, user_id: str) -> None:
 
 
 async def handle_callback(state, update: dict) -> None:
+    """Кнопки напоминания (этап 2). Финальный исход заменяет сообщение — кнопки исчезают."""
     callback = update.get("callback") or {}
     callback_id = str(callback.get("callback_id") or "")
-    payload = callback.get("payload") or ""
     user_id = str((callback.get("user") or {}).get("user_id") or "")
     if not user_id:
         return
-
-    if payload == "confirm_visit":
-        with session_scope(state.session_factory) as session:
-            appt = active_for(session, user_id)
-            appointment_id = appt.appointment_id if appt else None
-        if appointment_id is None:
-            await state.messenger.answer_callback(callback_id, "Активная запись не найдена")
-            return
-        try:
-            await state.onec.update_note(appointment_id, "✅ Визит подтвержден пациентом (MAX)")
-            text = "✅ <b>Спасибо! Ваш визит подтвержден.</b> Ждем вас в клинике!"
-        except OneCError:
-            text = "⚠️ Произошла ошибка связи с клиникой, но мы зафиксировали ваше подтверждение."
-        await state.messenger.answer_callback(callback_id, "Визит подтверждён")
-        await state.messenger.send_message(user_id, text)
-        logger.info("Подтверждение визита: user_id={} appointment_id={}", user_id, appointment_id)
-
-    elif payload == "cancel_visit_btn":
-        result = await cancel_for_user(state, user_id)
-        if isinstance(result, dict):
-            await state.messenger.answer_callback(callback_id, "Запись отменена")
-            await state.messenger.send_message(user_id, cancelled_text(result["fio"]))
-        else:
-            await state.messenger.answer_callback(callback_id, "Не удалось отменить запись")
-    else:
+    parsed = parse_callback(str(callback.get("payload") or ""))
+    if parsed is None:
         await state.messenger.answer_callback(callback_id)
+        return
+    action, appointment_id = parsed
+    outcome = await handle_button(state, user_id, action, appointment_id)
+    if outcome.remove_buttons:
+        original = ((update.get("message") or {}).get("body") or {}).get("text") or ""
+        text = f"{original}\n\n{outcome.text}" if original else outcome.text
+        await state.messenger.answer_callback(
+            callback_id, outcome.notice, {"text": text, "format": "html", "attachments": []}
+        )
+    else:
+        await state.messenger.answer_callback(callback_id, outcome.notice)
+        await state.messenger.send_message(user_id, outcome.text)
 
 
 async def process(state, update: dict) -> None:

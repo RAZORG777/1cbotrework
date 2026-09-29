@@ -58,34 +58,66 @@ def _fmt_date(appt: Appointment) -> str:
     return appt.visit_at.strftime("%d.%m.%Y")
 
 
+def reminder_keyboard(appointment_id: str, confirmed: bool) -> dict:
+    """Кнопки напоминания; данные кнопки — только UUID заявки (без ПДн, R3)."""
+    rows = []
+    if not confirmed:
+        rows.append([{"text": "✅ Подтверждаю", "callback_data": f"c:{appointment_id}"}])
+    rows.append([{"text": "❌ Отменить", "callback_data": f"x:{appointment_id}"}])
+    return {"inline_keyboard": rows}
+
+
+def reminder_text(appt: Appointment, kind: str) -> str:
+    fio = appt.fio_short
+    head = (
+        f"{fio}\n<b>{_fmt_date(appt)}</b> в <b>{appt.time_str}</b> вы записаны в клинику "
+        f"«ЯСНО ВИЖУ».\n🏥 Филиал: {appt.branch}\n👨‍⚕️ Врач: {appt.doctor_name}\n\n"
+    )
+    if kind == "2h":
+        head = "🔔 Напоминаем: ваш визит через 2 часа!\n" + head
+    if appt.confirmed_at is None:
+        return head + "Пожалуйста, подтвердите визит или отмените запись, если не сможете прийти 👇"
+    return head + "Если планы изменились, запись можно отменить 👇"
+
+
+async def send_reminder(appointment_id: str, kind: str) -> None:
+    """Задание напоминания: текст и кнопки — по записи на момент отправки (R4)."""
+    factory = _runtime.get("session_factory")
+    messenger = _runtime.get("messenger")
+    if factory is None or messenger is None:
+        logger.error("send_reminder: зависимости не настроены")
+        return
+    with session_scope(factory) as session:
+        appt = session.scalar(
+            select(Appointment).where(
+                Appointment.appointment_id == appointment_id,
+                Appointment.status == STATUS_ACTIVE,
+            )
+        )
+        if appt is None or not appt.notify:
+            return
+        chat_id = appt.user_id
+        text = reminder_text(appt, kind)
+        keyboard = reminder_keyboard(appt.appointment_id, appt.confirmed_at is not None)
+    await messenger.send_message(chat_id, text, keyboard)
+
+
 def schedule_reminders(scheduler: AsyncIOScheduler, appt: Appointment, now: datetime) -> int:
-    """Напоминания за 24 ч и 2 ч. Тексты — как в прежней версии бота."""
+    """Напоминания за 24 ч и 2 ч с кнопками «Подтверждаю / Отменить» (этап 2)."""
     if not appt.notify:
         return 0
     count = 0
-    fio = appt.fio_short
-    date_s = _fmt_date(appt)
-    plan = [
-        (
-            "rem24h_",
-            timedelta(hours=24),
-            f"{fio}\n<b>{date_s}</b> вы записаны...\n"
-            "Оператор Call-Центра свяжется с вами для подтверждения записи.",
-        ),
-        (
-            "rem2h_",
-            timedelta(hours=2),
-            f"{fio}\n<b>{date_s}</b> вы записаны...\nНапоминаем: ваш визит через 2 часа!",
-        ),
-    ]
-    for prefix, delta, text in plan:
+    for prefix, delta, kind in (
+        ("rem24h_", timedelta(hours=24), "24h"),
+        ("rem2h_", timedelta(hours=2), "2h"),
+    ):
         run_at = appt.visit_at - delta
         if run_at > now:
             scheduler.add_job(
-                deliver,
+                send_reminder,
                 "date",
                 run_date=run_at,
-                args=[appt.user_id, text],
+                args=[appt.appointment_id, kind],
                 id=f"{prefix}{appt.appointment_id}",
                 replace_existing=True,
             )

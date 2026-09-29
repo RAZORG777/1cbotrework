@@ -9,8 +9,27 @@ from sqlalchemy import func, select
 from ..auth import require_tg_webhook_secret
 from ..db import mark_processed, session_scope
 from ..models import STATUS_ACTIVE, Appointment
+from ..visit_actions import handle_button, parse_callback
 
 router = APIRouter()
+
+
+async def handle_callback(state, query: dict) -> None:
+    """Кнопки напоминания (этап 2); прочие нажатия только подтверждаются."""
+    query_id = str(query.get("id", ""))
+    parsed = parse_callback(str(query.get("data") or ""))
+    user_id = str((query.get("from") or {}).get("id") or "")
+    if parsed is None or not user_id:
+        await state.messenger.answer_callback(query_id)
+        return
+    action, appointment_id = parsed
+    outcome = await handle_button(state, user_id, action, appointment_id)
+    await state.messenger.answer_callback(query_id, outcome.notice)
+    message = query.get("message") or {}
+    chat_id = str((message.get("chat") or {}).get("id") or user_id)
+    if outcome.remove_buttons and message.get("message_id") is not None:
+        await state.messenger.edit_reply_markup(chat_id, message["message_id"])
+    await state.messenger.send_message(chat_id, outcome.text)
 
 
 @router.post("/admin/webhook", dependencies=[Depends(require_tg_webhook_secret)])
@@ -29,7 +48,7 @@ async def telegram_webhook(request: Request) -> dict:
 
     try:
         if "callback_query" in update:
-            await state.messenger.answer_callback(str(update["callback_query"].get("id", "")))
+            await handle_callback(state, update["callback_query"])
             return {"status": "ok"}
 
         message = update.get("message") or {}

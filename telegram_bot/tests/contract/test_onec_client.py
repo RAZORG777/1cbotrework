@@ -106,3 +106,17 @@ async def test_book_stage1_response_fields(client):
         json={"status": "error", "code": "STATE_NOT_CONFIGURED", "error": "Запись не создана"}
     )
     assert (await client.create_booking({"doctor_id": "d"}))["code"] == "STATE_NOT_CONFIGURED"
+
+
+@respx.mock
+async def test_confirm(client):
+    """Этап 2: POST confirm (contracts/onec-confirm.md)."""
+    route = respx.post(f"{BASE}/confirm").respond(
+        json={"status": "success", "appointment_id": "a1", "already": True}
+    )
+    data = await client.confirm("a1", "telegram")
+    assert json.loads(route.calls.last.request.content) == {
+        "appointment_id": "a1",
+        "platform": "telegram",
+    }
+    assert data["already"] is True

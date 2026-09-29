@@ -55,6 +55,9 @@ def mocks():
             json={"status": "success", "appointment_id": "appt-2"}
         )
         router.post(f"{ONEC}/cancel", name="cancel").respond(json={"status": "success"})
+        router.post(f"{ONEC}/confirm", name="confirm").respond(
+            json={"status": "success", "appointment_id": "appt-1", "already": False}
+        )
         router.post(url__startswith=f"{TG}/bot", name="tg").respond(json={"ok": True, "result": {}})
         yield router
 

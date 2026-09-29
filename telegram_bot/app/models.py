@@ -38,6 +38,8 @@ class Appointment(Base):
     status: Mapped[str] = mapped_column(String, default=STATUS_ACTIVE)
     created_at: Mapped[datetime] = mapped_column(DateTime)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Этап 2: пациент подтвердил визит кнопкой напоминания (сбрасывается при переносе).
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     __table_args__ = (
         Index(

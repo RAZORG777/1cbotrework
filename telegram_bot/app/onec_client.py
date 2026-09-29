@@ -113,3 +113,10 @@ class OneCClient:
     async def cancel_booking(self, appointment_id: str) -> dict:
         data = await self._request("POST", "cancel", json={"appointment_id": appointment_id})
         return self._expect(data, dict, "cancel")
+
+    async def confirm(self, appointment_id: str, platform: str) -> dict:
+        """Этап 2: подтверждение визита (contracts/onec-confirm.md), идемпотентно."""
+        data = await self._request(
+            "POST", "confirm", json={"appointment_id": appointment_id, "platform": platform}
+        )
+        return self._expect(data, dict, "confirm")

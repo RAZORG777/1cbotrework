@@ -1,4 +1,4 @@
-"""БД бота: engine, сессии, миграция схемы v0 → v1 (data-model.md › Миграция)."""
+"""БД бота: engine, сессии, миграции схемы v0 → v1 → v2 (data-model.md › Миграция)."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from .models import STATUS_ACTIVE, STATUS_FINISHED, Base, ProcessedEvent
 
 MSK = ZoneInfo("Europe/Moscow")
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def now_msk() -> datetime:
@@ -135,6 +135,11 @@ def init_db(engine: Engine, db_file: Path) -> None:
         return
     Base.metadata.create_all(engine)
     with engine.begin() as conn:
+        # v1 → v2 (этап 2): колонка confirmed_at; данные не копируются.
+        columns = {c["name"] for c in inspect(conn).get_columns("appointments")}
+        if "confirmed_at" not in columns:
+            conn.exec_driver_sql("ALTER TABLE appointments ADD COLUMN confirmed_at DATETIME")
+            logger.info("Миграция БД v1 → v2: добавлена колонка confirmed_at")
         if _user_version(conn) < SCHEMA_VERSION:
             conn.exec_driver_sql(f"PRAGMA user_version = {SCHEMA_VERSION}")
 

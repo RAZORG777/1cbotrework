@@ -62,7 +62,7 @@ def test_migration_v0_to_v1(tmp_path):
 
     assert (tmp_path / "appointments.db.bak-v0").exists()
     con = sqlite3.connect(db)
-    assert con.execute("PRAGMA user_version").fetchone()[0] == 1
+    assert con.execute("PRAGMA user_version").fetchone()[0] == 2
     assert con.execute("SELECT count(*) FROM apscheduler_jobs").fetchone()[0] == 0
     con.close()
 
@@ -88,4 +88,35 @@ def test_new_db_gets_version(tmp_path):
     engine = make_engine(db)
     init_db(engine, db)
     con = sqlite3.connect(db)
-    assert con.execute("PRAGMA user_version").fetchone()[0] == 1
+    assert con.execute("PRAGMA user_version").fetchone()[0] == 2
+
+
+V1_SCHEMA = """
+CREATE TABLE appointments (
+    id INTEGER PRIMARY KEY, user_id VARCHAR, platform VARCHAR, appointment_id VARCHAR,
+    branch VARCHAR, doctor_id VARCHAR, doctor_name VARCHAR, service_id VARCHAR,
+    service_name VARCHAR, visit_at DATETIME, first_name VARCHAR, last_name VARCHAR,
+    middle_name VARCHAR, phone VARCHAR, birth_date VARCHAR, notify BOOLEAN, status VARCHAR,
+    created_at DATETIME, closed_at DATETIME);
+INSERT INTO appointments (user_id, appointment_id, visit_at, status, created_at, notify)
+    VALUES ('7', 'appt-v1', '2030-01-10 10:00:00', 'active', '2030-01-01 00:00:00', 1);
+PRAGMA user_version = 1;
+"""
+
+
+def test_migration_v1_to_v2(tmp_path):
+    """Этап 2: к схеме v1 добавляется confirmed_at, данные остаются."""
+    db = tmp_path / "appointments.db"
+    con = sqlite3.connect(db)
+    con.executescript(V1_SCHEMA)
+    con.close()
+    engine = make_engine(db)
+    init_db(engine, db)
+    init_db(engine, db)  # повторный запуск безопасен
+    con = sqlite3.connect(db)
+    columns = {r[1] for r in con.execute("PRAGMA table_info(appointments)")}
+    assert "confirmed_at" in columns
+    assert con.execute("PRAGMA user_version").fetchone()[0] == 2
+    row = con.execute("SELECT appointment_id, confirmed_at FROM appointments").fetchone()
+    assert row == ("appt-v1", None)
+    con.close()

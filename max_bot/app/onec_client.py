@@ -119,3 +119,10 @@ class OneCClient:
             "POST", "update_note", json={"appointment_id": appointment_id, "note": note}
         )
         return self._expect(data, dict, "update_note")
+
+    async def confirm(self, appointment_id: str, platform: str) -> dict:
+        """Этап 2: подтверждение визита (contracts/onec-confirm.md), идемпотентно."""
+        data = await self._request(
+            "POST", "confirm", json={"appointment_id": appointment_id, "platform": platform}
+        )
+        return self._expect(data, dict, "confirm")

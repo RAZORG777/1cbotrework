@@ -155,6 +155,7 @@ def fill(appt: Appointment, req: BookingRequest, appointment_id: str) -> None:
     appt.phone = req.patient.phone
     appt.birth_date = req.patient.birth_date
     appt.notify = req.send_notifications
+    appt.confirmed_at = None  # перенос: подтверждать заново (этап 2)
 
 
 def consent_required() -> JSONResponse:
