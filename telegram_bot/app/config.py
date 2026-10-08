@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     # Telegram
     BOT_TOKEN: str = Field(min_length=1)
     TELEGRAM_API_BASE: str = "https://api.telegram.org"
+    # Адрес, на который Telegram шлёт апдейты. Пусто — WEBAPP_URL/admin/webhook. Если Telegram
+    # не достучаться до сервера напрямую — адрес воркера-посредника (deploy/cloudflare/).
+    TG_WEBHOOK_URL: str = ""
     TG_WEBHOOK_SECRET: str = Field(min_length=1, max_length=256, pattern=r"^[A-Za-z0-9_-]+$")
     ADMIN_IDS: str = ""
 
@@ -55,6 +58,17 @@ class Settings(BaseSettings):
     _check_https = field_validator(
         "TELEGRAM_API_BASE", "WEBAPP_URL", "WEBAPP_URL2", "PD_POLICY_URL"
     )(_https)
+
+    @field_validator("TG_WEBHOOK_URL")
+    @classmethod
+    def _webhook_url(cls, value: str) -> str:
+        if value and not value.startswith("https://"):
+            raise ValueError("должен начинаться с https://")
+        return value.rstrip("/")
+
+    @property
+    def webhook_url(self) -> str:
+        return self.TG_WEBHOOK_URL or f"{self.WEBAPP_URL}/admin/webhook"
 
     @field_validator("ONEC_URL")
     @classmethod

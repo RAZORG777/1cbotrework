@@ -55,3 +55,10 @@ async def test_admin_auth(client):
     r = await client.get("/admin", auth=("admin", "admin-pass"))
     assert r.status_code == 200 and "Панель управления" in r.text
     assert (await client.get("/admin/logs", auth=("admin", "admin-pass"))).status_code == 200
+
+
+def test_webhook_url_override(settings):
+    """TG_WEBHOOK_URL — адрес воркера-посредника; пусто — прямой адрес сервера."""
+    assert settings.webhook_url == "https://app.test/admin/webhook"
+    relay = settings.model_copy(update={"TG_WEBHOOK_URL": "https://relay.workers.dev/telegram"})
+    assert relay.webhook_url == "https://relay.workers.dev/telegram"

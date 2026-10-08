@@ -158,7 +158,7 @@ async def bot_api(state, method: str, payload: dict | None = None) -> dict:
 
 
 def expected_webhook_url(settings) -> str:
-    return f"{settings.WEBAPP_URL}/admin/webhook"
+    return settings.webhook_url
 
 
 async def _check_bot(state) -> tuple[bool, str, None]:

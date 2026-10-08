@@ -16,7 +16,7 @@ def main() -> int:
     settings = load_settings()
     url = f"{settings.TELEGRAM_API_BASE}/bot{settings.BOT_TOKEN}/setWebhook"
     payload = {
-        "url": f"{settings.WEBAPP_URL}/admin/webhook",
+        "url": settings.webhook_url,
         "secret_token": settings.TG_WEBHOOK_SECRET,
         "allowed_updates": ["message", "callback_query"],
         "drop_pending_updates": False,
@@ -24,6 +24,7 @@ def main() -> int:
     response = httpx.post(url, json=payload, timeout=15)
     data = response.json()
     # Токен в вывод не попадает.
+    print(f"Адрес вебхука: {settings.webhook_url}")
     print(
         f"setWebhook → HTTP {response.status_code}: ok={data.get('ok')} {data.get('description', '')}"
     )
