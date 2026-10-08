@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging as std_logging
+import traceback
 from contextlib import asynccontextmanager
 
 import httpx
@@ -13,9 +15,10 @@ from fastapi.staticfiles import StaticFiles
 from loguru import logger
 from sqlalchemy import select
 
+from . import metrics
 from .config import Settings, load_settings
 from .db import init_db, make_engine, make_session_factory, now_msk, session_scope
-from .logging import setup_logging
+from .logging import mask_pii, setup_logging
 from .messenger import TelegramMessenger
 from .models import STATUS_ACTIVE, Appointment
 from .onec_client import OneCClient
@@ -28,7 +31,32 @@ from .reminders import (
     schedule_reminders,
     set_runtime,
 )
-from .routes import admin, health, internal, webapp, webhook
+from .routes import admin, admin_api, health, internal, webapp, webhook
+
+ADMIN_HEADERS = {
+    "Cache-Control": "no-store",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff",
+}
+
+
+class InterceptHandler(std_logging.Handler):
+    """Ошибки uvicorn — в общий журнал (с маской ПДн), чтобы их было видно в админке."""
+
+    def emit(self, record: std_logging.LogRecord) -> None:
+        text = record.getMessage()
+        if record.exc_info:
+            text += "\n" + "".join(traceback.format_exception(*record.exc_info)).rstrip()
+        logger.opt(depth=6).log(record.levelname if record.levelno >= 30 else "INFO", text)
+
+
+def intercept_uvicorn() -> None:
+    for name in ("uvicorn.error",):
+        std = std_logging.getLogger(name)
+        std.handlers = [InterceptHandler()]
+        std.setLevel(std_logging.WARNING)
+        std.propagate = False
 
 
 def create_app(
@@ -44,6 +72,7 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         init_db(engine, settings.db_file)
+        metrics.mark_started()
         scheduler = make_scheduler(f"sqlite:///{settings.db_file}")
         app.state.scheduler = scheduler
         set_runtime(
@@ -68,6 +97,7 @@ def create_app(
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings = settings
+    app.state.stop_process = admin_api.stop_process
     app.state.session_factory = session_factory
     app.state.onec = OneCClient(
         settings.ONEC_URL, (settings.ONEC_USER, settings.ONEC_PASSWORD), transport=onec_transport
@@ -83,6 +113,28 @@ def create_app(
     async def http_error(request: Request, exc: HTTPException):
         body = exc.detail if isinstance(exc.detail, dict) else {"detail": exc.detail}
         return JSONResponse(body, status_code=exc.status_code, headers=exc.headers)
+
+    @app.middleware("http")
+    async def admin_headers(request: Request, call_next):
+        response = await call_next(request)
+        path = request.url.path
+        if "/admin" in path and not path.endswith("/webhook"):
+            for key, value in ADMIN_HEADERS.items():
+                response.headers.setdefault(key, value)
+        return response
+
+    @app.exception_handler(Exception)
+    async def unhandled_error(request: Request, exc: Exception):
+        metrics.inc("http_errors")
+        trace = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)).rstrip()
+        logger.error(
+            "Необработанная ошибка {} {}: {}\n{}",
+            request.method,
+            request.url.path,
+            type(exc).__name__,
+            mask_pii(trace),
+        )
+        return JSONResponse({"status": "error", "error": "INTERNAL"}, status_code=500)
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request: Request, exc: RequestValidationError):
@@ -105,13 +157,14 @@ def create_app(
         StaticFiles(directory=webapp.APP_DIR / "assets", check_dir=False),
         name="webapp-assets",
     )
-    for module in (health, webapp, internal, webhook, admin):
+    for module in (health, webapp, internal, webhook, admin, admin_api):
         app.include_router(module.router)
     return app
 
 
 def run() -> None:
     settings = load_settings()
+    intercept_uvicorn()
     uvicorn.run(create_app(settings), host=settings.HOST, port=settings.PORT, log_level="warning")
 
 

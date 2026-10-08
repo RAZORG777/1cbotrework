@@ -115,3 +115,14 @@ def require_admin(request: Request, credentials: HTTPBasicCredentials = Depends(
             headers={"WWW-Authenticate": "Basic"},
         )
     return credentials.username
+
+
+def require_admin_action(request: Request, admin: str = Depends(require_admin)) -> str:
+    """Изменяющие запросы админки: нужен заголовок X-Admin-Request (защита от CSRF).
+
+    Браузер сохраняет вход Basic и отправит его и с чужого сайта, но поставить свой заголовок
+    чужой сайт не может без CORS, а CORS бот не разрешает (specs/006-admin-devtool, FR-002).
+    """
+    if request.headers.get("X-Admin-Request") != "1":
+        raise HTTPException(status_code=403, detail={"error": "ADMIN_HEADER_REQUIRED"})
+    return admin

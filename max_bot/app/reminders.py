@@ -56,7 +56,7 @@ def make_scheduler(db_url: str) -> AsyncIOScheduler:
 
 
 def reminder_keyboard(appointment_id: str, confirmed: bool, branch: str | None = None):
-    """Кнопки напоминания (specs/005-bot-messages): «Приду», «Отменить запись», «Как добраться»."""
+    """Кнопки напоминания (specs/005-bot-messages): «Подтвердить визит», «Отменить запись», «Как добраться»."""
     return keyboards.reminder(appointment_id, confirmed, branch)
 
 
@@ -90,7 +90,7 @@ async def send_reminder(appointment_id: str, kind: str) -> None:
 
 
 def schedule_reminders(scheduler: AsyncIOScheduler, appt: Appointment, now: datetime) -> int:
-    """Напоминания за 24 ч и 2 ч с кнопками «Приду / Отменить запись» (этапы 2 и 5)."""
+    """Напоминания за 24 ч и 2 ч с кнопками «Подтвердить визит / Отменить запись» (этапы 2 и 5)."""
     if not appt.notify:
         return 0
     count = 0

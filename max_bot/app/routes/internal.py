@@ -7,7 +7,7 @@ from loguru import logger
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from .. import keyboards, texts
+from .. import keyboards, metrics, texts
 from ..auth import require_onec_secret
 from ..db import mark_processed, now_msk, session_scope
 from ..doctors_enricher import find_prodoctorov_url
@@ -47,6 +47,7 @@ def feedback_text(appt: Appointment) -> str:
 @router.post("/cancel-visit")
 async def cancel_visit(signal: Signal, request: Request, background: BackgroundTasks) -> dict:
     state = request.app.state
+    metrics.inc("onec_signals")
     key = f"onec:cancel:{signal.appointment_id}"
     with session_scope(state.session_factory) as session:
         appt = session.scalar(
@@ -82,6 +83,7 @@ async def cancel_visit(signal: Signal, request: Request, background: BackgroundT
 @router.post("/finish-visit")
 async def finish_visit(signal: Signal, request: Request) -> dict:
     state = request.app.state
+    metrics.inc("onec_signals")
     key = f"onec:finish:{signal.appointment_id}"
     now = now_msk()
     with session_scope(state.session_factory) as session:

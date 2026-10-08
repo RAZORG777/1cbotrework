@@ -38,7 +38,7 @@ def welcome(miniapp: str, site_url: str) -> list:
 
 
 def reminder(appointment_id: str, confirmed: bool, branch: str | None) -> list:
-    """Напоминание: «Приду» (если не подтверждено), «Отменить запись», «Как добраться».
+    """Напоминание: «Подтвердить визит» (если не подтверждено), «Отменить запись», «Как добраться».
     В payload — только UUID заявки (без ПДн)."""
     items = []
     if not confirmed:

@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Панель управления ботом</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231D7A70'/%3E%3Cpath d='M9 17l4.5 4.5L23 11' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="admin/ui/admin.css">
+  <script src="admin/ui/admin.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <div class="brand-text">
+        <strong>Панель управления</strong>
+        <span id="bot-name" class="muted">бот</span>
+      </div>
+    </div>
+    <div class="topbar-status" id="top-status" aria-live="polite">
+      <span class="dot dot-idle"></span><span>проверка…</span>
+    </div>
+    <div class="topbar-actions">
+      <div class="seg" role="group" aria-label="Оформление">
+        <button type="button" data-theme-set="auto" title="Как в системе">Авто</button>
+        <button type="button" data-theme-set="light">Светлая</button>
+        <button type="button" data-theme-set="dark">Тёмная</button>
+      </div>
+      <span id="admin-name" class="muted small"></span>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Разделы">
+    <button role="tab" data-tab="overview" aria-selected="true">Обзор</button>
+    <button role="tab" data-tab="logs">Журнал</button>
+    <button role="tab" data-tab="jobs">Задания</button>
+    <button role="tab" data-tab="appointments">Записи</button>
+    <button role="tab" data-tab="onec">1С</button>
+    <button role="tab" data-tab="messages">Сообщения</button>
+    <button role="tab" data-tab="settings">Настройки</button>
+  </nav>
+
+  <main>
+    <!-- Обзор -->
+    <section id="tab-overview" class="tab-panel" role="tabpanel">
+      <div class="section-head">
+        <h1>Обзор</h1>
+        <div class="row gap">
+          <span class="muted small" id="overview-updated"></span>
+          <button type="button" class="btn" id="overview-refresh">Обновить</button>
+        </div>
+      </div>
+      <div class="grid checks" id="health"></div>
+      <div class="grid tiles" id="tiles"></div>
+      <div class="grid two">
+        <div class="card">
+          <h2>Активность с момента запуска</h2>
+          <table class="kv" id="counters"></table>
+        </div>
+        <div class="card">
+          <h2>Процесс</h2>
+          <table class="kv" id="process"></table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Журнал -->
+    <section id="tab-logs" class="tab-panel" role="tabpanel" hidden>
+      <div class="section-head">
+        <h1>Журнал</h1>
+        <div class="row gap wrap">
+          <label class="field inline">
+            <span>Уровень записи</span>
+            <select id="log-write-level" title="Что бот пишет в журнал. Сбрасывается на INFO при перезапуске.">
+              <option>DEBUG</option><option>INFO</option><option>WARNING</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <div class="toolbar">
+        <label class="field">
+          <span>Источник</span>
+          <select id="log-source"><option value="">Живой хвост</option></select>
+        </label>
+        <label class="field">
+          <span>Показывать</span>
+          <select id="log-level">
+            <option value="">всё</option>
+            <option value="INFO">INFO и выше</option>
+            <option value="WARNING">WARNING и выше</option>
+            <option value="ERROR">только ERROR</option>
+          </select>
+        </label>
+        <label class="field grow">
+          <span>Поиск</span>
+          <input id="log-q" type="search" placeholder="appointment_id, 1С, user_id…" autocomplete="off">
+        </label>
+        <div class="row gap toolbar-buttons">
+          <button type="button" class="btn" id="log-pause">Пауза</button>
+          <button type="button" class="btn" id="log-clear">Очистить экран</button>
+          <a class="btn" id="log-download" hidden>Скачать файл</a>
+        </div>
+      </div>
+      <div class="logbox" id="logbox" tabindex="0" aria-label="Строки журнала"></div>
+      <div class="row between small muted log-foot">
+        <span id="log-status"></span>
+        <label class="check"><input type="checkbox" id="log-follow" checked> держать внизу</label>
+      </div>
+    </section>
+
+    <!-- Задания -->
+    <section id="tab-jobs" class="tab-panel" role="tabpanel" hidden>
+      <div class="section-head">
+        <h1>Задания планировщика</h1>
+        <button type="button" class="btn" id="jobs-refresh">Обновить</button>
+      </div>
+      <div class="card flush"><div class="table-wrap"><table class="data" id="jobs"></table></div></div>
+    </section>
+
+    <!-- Записи -->
+    <section id="tab-appointments" class="tab-panel" role="tabpanel" hidden>
+      <div class="section-head">
+        <h1>Записи</h1>
+        <span class="muted small">без ФИО, телефонов и дат рождения</span>
+      </div>
+      <div class="toolbar">
+        <label class="field">
+          <span>Статус</span>
+          <select id="appt-status">
+            <option value="active">активные</option>
+            <option value="cancelled">отменённые</option>
+            <option value="finished">завершённые</option>
+            <option value="all">все</option>
+          </select>
+        </label>
+        <label class="field grow">
+          <span>Номер записи 1С или id пользователя</span>
+          <input id="appt-q" type="search" autocomplete="off">
+        </label>
+        <div class="row gap toolbar-buttons"><button type="button" class="btn" id="appt-refresh">Найти</button></div>
+      </div>
+      <div class="card flush"><div class="table-wrap"><table class="data" id="appointments"></table></div></div>
+    </section>
+
+    <!-- 1С -->
+    <section id="tab-onec" class="tab-panel" role="tabpanel" hidden>
+      <div class="section-head">
+        <h1>Консоль 1С</h1>
+        <span class="muted small">только чтение: записать, отменить или перенести отсюда нельзя</span>
+      </div>
+      <form class="toolbar" id="onec-form">
+        <label class="field">
+          <span>Метод</span>
+          <select id="onec-method">
+            <option value="ping">ping</option>
+            <option value="specialties">specialties</option>
+            <option value="doctors">doctors</option>
+            <option value="services">services</option>
+            <option value="schedule">schedule</option>
+          </select>
+        </label>
+        <label class="field" data-param="branch">
+          <span>Филиал</span>
+          <select name="branch">
+            <option value="">—</option>
+            <option>Профсоюзная</option>
+            <option>Новые Ватутинки</option>
+          </select>
+        </label>
+        <label class="field grow" data-param="doctor_id">
+          <span>doctor_id</span>
+          <input name="doctor_id" autocomplete="off">
+        </label>
+        <label class="field" data-param="date">
+          <span>Дата</span>
+          <input name="date" type="date">
+        </label>
+        <label class="field" data-param="start_date">
+          <span>С</span>
+          <input name="start_date" type="date">
+        </label>
+        <label class="field" data-param="end_date">
+          <span>По</span>
+          <input name="end_date" type="date">
+        </label>
+        <div class="row gap toolbar-buttons"><button type="submit" class="btn primary">Выполнить</button></div>
+      </form>
+      <div class="card">
+        <div class="row between">
+          <h2 id="onec-title">Ответ</h2>
+          <span class="small" id="onec-meta"></span>
+        </div>
+        <div id="onec-pick"></div>
+        <pre class="json" id="onec-body">Выберите метод и нажмите «Выполнить».</pre>
+      </div>
+    </section>
+
+    <!-- Сообщения -->
+    <section id="tab-messages" class="tab-panel" role="tabpanel" hidden>
+      <div class="section-head">
+        <h1>Шаблоны сообщений</h1>
+        <label class="field inline">
+          <span>Отправлять себе в</span>
+          <select id="msg-recipient"></select>
+        </label>
+      </div>
+      <p class="muted small hint" id="msg-hint">Пример на вымышленной записи. Кнопки в отправленном сообщении настоящие, но запись demo-0000 не существует: бот ответит «Запись изменилась».</p>
+      <div class="messages" id="templates"></div>
+    </section>
+
+    <!-- Настройки -->
+    <section id="tab-settings" class="tab-panel" role="tabpanel" hidden>
+      <div class="section-head"><h1>Настройки и обслуживание</h1></div>
+      <div class="grid two">
+        <div class="card">
+          <h2>Обслуживание</h2>
+          <div class="ops">
+            <div class="op">
+              <div><strong>Перерегистрировать вебхук</strong><p class="muted small">Нужно после смены адреса туннеля или WEBAPP_URL.</p></div>
+              <button type="button" class="btn" data-op="webhook">Выполнить</button>
+            </div>
+            <div class="op">
+              <div><strong>Очистка ПДн сейчас</strong><p class="muted small">Прошедшие записи — в завершённые, закрытые старше срока хранения — удалить. Обычно идёт ночью в 03:30.</p></div>
+              <button type="button" class="btn" data-op="retention">Запустить</button>
+            </div>
+            <div class="op">
+              <div><strong>Перезапустить бот</strong><p class="muted small">Служба поднимет бот через 5 секунд. Задания сохранены в БД. При ручном запуске бот просто остановится.</p></div>
+              <button type="button" class="btn danger" data-op="restart">Перезапустить</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Настройки из .env</h2>
+          <p class="muted small">Меняются на сервере в файле .env, затем бот перезапускается. Секреты не показываются.</p>
+          <table class="kv mono" id="settings"></table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="confirm" class="dialog">
+    <form method="dialog">
+      <h2 id="confirm-title">Подтвердите действие</h2>
+      <p id="confirm-text" class="muted"></p>
+      <div class="row gap end">
+        <button value="cancel" class="btn">Отмена</button>
+        <button value="ok" class="btn primary" id="confirm-ok">Да</button>
+      </div>
+    </form>
+  </dialog>
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+</body>
+</html>

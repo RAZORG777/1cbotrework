@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from .. import keyboards, texts
+from .. import keyboards, metrics, texts
 from ..auth import WebAppUser, current_user
 from ..config import BASE_DIR
 from ..db import now_msk, session_scope
@@ -314,6 +314,7 @@ async def book(
     # Задания пишутся в ту же SQLite — только после фиксации транзакции.
     schedule_reminders(state.scheduler, appt, now)
     logger.info("Записан: user_id={} appointment_id={}", user.id, appointment_id)
+    metrics.inc("bookings")
     log_patient_result(response, appointment_id)
 
     background.add_task(
@@ -356,6 +357,7 @@ async def reschedule(
         return onec_refusal(response, user.id)
 
     new_id = str(response.get("appointment_id") or old_id)
+    metrics.inc("reschedules")
     log_patient_result(response, new_id)
     now = now_msk()
     with session_scope(state.session_factory) as session:
@@ -415,6 +417,7 @@ async def cancel_for_user(state, user_id: str) -> JSONResponse | dict:
         marks.discard(appointment_id)
     remove_reminders(state.scheduler, appointment_id)
     logger.info("Отменена пациентом: user_id={} appointment_id={}", user_id, appointment_id)
+    metrics.inc("cancellations")
     return {"status": "success", "appointment_id": appointment_id, "visit": visit}
 
 

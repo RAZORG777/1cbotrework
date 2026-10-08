@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Request
 from loguru import logger
 from sqlalchemy import func, select
 
-from .. import keyboards, texts
+from .. import keyboards, metrics, texts
 from ..auth import require_tg_webhook_secret
 from ..db import mark_processed, session_scope
 from ..models import STATUS_ACTIVE, Appointment
@@ -47,8 +47,10 @@ async def telegram_webhook(request: Request) -> dict:
             if not mark_processed(session, f"tg:{update_id}"):
                 return {"status": "ok"}
 
+    metrics.inc("webhook_updates")
     try:
         if "callback_query" in update:
+            metrics.inc("callbacks")
             await handle_callback(state, update["callback_query"])
             return {"status": "ok"}
 

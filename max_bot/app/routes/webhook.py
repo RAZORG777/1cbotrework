@@ -11,7 +11,7 @@ from __future__ import annotations
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from loguru import logger
 
-from .. import keyboards, texts
+from .. import keyboards, metrics, texts
 from ..auth import require_max_webhook_secret
 from ..db import mark_processed, session_scope
 from ..visit_actions import handle_button, parse_callback
@@ -49,6 +49,7 @@ async def send_welcome(state, user_id: str, first_name: str = "") -> None:
 
 async def handle_callback(state, update: dict) -> None:
     """Кнопки напоминания (этап 2). Финальный исход заменяет сообщение — кнопки исчезают."""
+    metrics.inc("callbacks")
     callback = update.get("callback") or {}
     callback_id = str(callback.get("callback_id") or "")
     user_id = str((callback.get("user") or {}).get("user_id") or "")
@@ -103,5 +104,6 @@ async def max_webhook(request: Request, background: BackgroundTasks) -> dict:
             if not mark_processed(session, key):
                 return {"status": "ok"}
     logger.info("Событие MAX: {}", update.get("update_type"))
+    metrics.inc("webhook_updates")
     background.add_task(process, state, update)
     return {"status": "ok"}

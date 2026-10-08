@@ -8,6 +8,8 @@ from typing import Any
 import httpx
 from loguru import logger
 
+from . import metrics
+
 RETRY_PAUSE = 2.0
 
 
@@ -59,6 +61,7 @@ class TelegramMessenger:
         if reply_markup:
             payload["reply_markup"] = reply_markup
         ok = await self.call("sendMessage", payload) is not None
+        metrics.inc("messages_sent" if ok else "messages_failed")
         if ok:
             logger.info("Сообщение доставлено chat_id={}", chat_id)
         return ok

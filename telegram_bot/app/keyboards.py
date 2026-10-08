@@ -39,7 +39,7 @@ def welcome(webapp_url: str, site_url: str) -> dict:
 
 
 def reminder(appointment_id: str, confirmed: bool, branch: str | None) -> dict:
-    """Напоминание: «Приду» (если не подтверждено), «Отменить запись», «Как добраться».
+    """Напоминание: «Подтвердить визит» (если не подтверждено), «Отменить запись», «Как добраться».
     В данных кнопки — только UUID заявки (без ПДн)."""
     rows = []
     if not confirmed:

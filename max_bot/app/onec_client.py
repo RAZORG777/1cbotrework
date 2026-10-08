@@ -10,6 +10,8 @@ from typing import Any
 import httpx
 from loguru import logger
 
+from . import metrics
+
 
 class OneCError(Exception):
     """1С ответила, но ответ ошибочный или неожиданного формата."""
@@ -46,11 +48,15 @@ class OneCClient:
             except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
                 # Запрос не ушёл — безопасно повторить один раз.
                 if attempt == 2:
+                    metrics.inc("onec_errors")
                     logger.error("1С недоступна: {} {} ({})", method, endpoint, type(exc).__name__)
                     raise OneCUnavailable(endpoint) from exc
             except httpx.TransportError as exc:
                 logger.error("1С: сетевая ошибка {} {} ({})", method, endpoint, type(exc).__name__)
+                metrics.inc("onec_errors")
                 raise OneCUnavailable(endpoint) from exc
+        if response.status_code >= 400:
+            metrics.inc("onec_errors")
         if response.status_code >= 500:
             logger.error("1С: HTTP {} на {} {}", response.status_code, method, endpoint)
             raise OneCUnavailable(f"{endpoint}: HTTP {response.status_code}")
@@ -61,6 +67,7 @@ class OneCClient:
             return response.json()
         except ValueError as exc:
             logger.error("1С: ответ не JSON на {} {}", method, endpoint)
+            metrics.inc("onec_errors")
             raise OneCError(f"{endpoint}: invalid JSON") from exc
 
     @staticmethod

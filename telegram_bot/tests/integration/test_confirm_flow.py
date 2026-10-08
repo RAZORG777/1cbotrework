@@ -1,4 +1,4 @@
-"""Кнопки «Приду / Отменить запись» в напоминаниях (specs/003-visit-confirmation, 005)."""
+"""Кнопки «Подтвердить визит / Отменить запись» в напоминаниях (specs/003-visit-confirmation, 005)."""
 
 import json
 
@@ -123,7 +123,7 @@ async def test_reminder_keyboard(client, app, mocks):
     rows = sent["reply_markup"]["inline_keyboard"]
     buttons = [(b["text"], b.get("callback_data"), b.get("style")) for row in rows for b in row]
     assert buttons[:2] == [
-        ("Приду", "c:appt-1", "success"),
+        ("Подтвердить визит", "c:appt-1", "success"),
         ("Отменить запись", "x:appt-1", "danger"),
     ]
     assert buttons[2][0] == "Как добраться" and rows[2][0]["url"].startswith(

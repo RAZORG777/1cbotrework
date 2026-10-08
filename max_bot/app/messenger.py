@@ -8,6 +8,8 @@ from typing import Any
 import httpx
 from loguru import logger
 
+from . import metrics
+
 RETRY_PAUSE = 2.0
 
 
@@ -50,6 +52,7 @@ class MaxMessenger:
         if keyboard:
             payload["attachments"] = [{"type": "inline_keyboard", "payload": {"buttons": keyboard}}]
         ok = await self._post("/messages", {"user_id": user_id}, payload)
+        metrics.inc("messages_sent" if ok else "messages_failed")
         if ok:
             logger.info("Сообщение доставлено user_id={}", user_id)
         return ok
