@@ -68,3 +68,34 @@ def reminder(appointment_id: str, confirmed: bool, branch: str | None) -> list:
 
 def review(link: str) -> list:
     return rows([{"type": "link", "text": texts.BTN_REVIEW, "url": link}])
+
+
+# --- Новости и рассылки (specs/007-broadcasts) ---
+
+NEWS_YES, NEWS_NO, NEWS_OFF = "news:yes", "news:no", "news:off"
+
+
+def news_question() -> list:
+    return rows(
+        [
+            {
+                "type": "callback",
+                "text": texts.BTN_NEWS_YES,
+                "payload": NEWS_YES,
+                "intent": "positive",
+            },
+            {"type": "callback", "text": texts.BTN_NEWS_NO, "payload": NEWS_NO},
+        ]
+    )
+
+
+def broadcast(button_type: str, button_text: str, button_url: str, miniapp: str, promo: bool):
+    """Кнопки рассылки: «Записаться» или ссылка; у новостей и акций — «Отписаться»."""
+    items = []
+    if button_type == "book":
+        items.append([book(miniapp)])
+    elif button_type == "url" and button_url:
+        items.append([{"type": "link", "text": button_text or texts.BTN_SITE, "url": button_url}])
+    if promo:
+        items.append([{"type": "callback", "text": texts.BTN_UNSUBSCRIBE, "payload": NEWS_OFF}])
+    return rows(*items) if items else None

@@ -62,3 +62,6 @@ webapp/dist/
 webapp/e2e/screenshots/
 webapp/test-results/
 webapp/playwright-report/
+
+# Картинки рассылок (specs/007-broadcasts)
+*/media/

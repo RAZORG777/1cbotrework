@@ -40,7 +40,7 @@ def test_retention(tmp_path):
 
     with session_scope(factory) as s:
         result = run_retention(s, 30, NOW)
-    assert result == {"finished": 1, "deleted": 1, "events": 1}
+    assert result == {"finished": 1, "deleted": 1, "events": 1, "users": 0}
     with session_scope(factory) as s:
         rows = {a.appointment_id: a for a in s.query(Appointment)}
         assert set(rows) == {"future", "yesterday", "fresh-closed", "custom"}

@@ -11,7 +11,7 @@ from __future__ import annotations
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from loguru import logger
 
-from .. import keyboards, metrics, texts
+from .. import keyboards, metrics, subscribers, texts
 from ..auth import require_max_webhook_secret
 from ..db import mark_processed, session_scope
 from ..visit_actions import handle_button, parse_callback
@@ -39,11 +39,45 @@ def first_name_of(user: dict) -> str:
     return name.split()[0] if name else ""
 
 
+async def send_news_question(state, user_id: str) -> None:
+    await state.messenger.send_message(user_id, texts.NEWS_QUESTION, keyboards.news_question())
+
+
 async def send_welcome(state, user_id: str, first_name: str = "") -> None:
+    """Приветствие; вопрос о новостях — если пользователь ещё не отвечал (specs/007-broadcasts)."""
+    with session_scope(state.session_factory) as session:
+        subscribers.touch(session, user_id)
+        ask = subscribers.needs_question(session, user_id)
     await state.messenger.send_message(
         user_id,
         texts.welcome(first_name),
         keyboards.welcome(state.settings.MAX_MINIAPP, texts.SITE_URL),
+    )
+    if ask:
+        await send_news_question(state, user_id)
+
+
+NEWS_ANSWERS = {
+    keyboards.NEWS_YES: (True, texts.NEWS_YES),
+    keyboards.NEWS_NO: (False, texts.NEWS_NO),
+    keyboards.NEWS_OFF: (False, texts.UNSUBSCRIBED),
+}
+
+
+async def handle_news(state, update: dict, callback_id: str, user_id: str, payload: str) -> None:
+    """Ответ на вопрос о новостях или «Отписаться» из рассылки."""
+    consent, reply = NEWS_ANSWERS[payload]
+    with session_scope(state.session_factory) as session:
+        subscribers.set_consent(session, user_id, consent)
+    if payload == keyboards.NEWS_OFF:
+        await state.messenger.answer_callback(callback_id, texts.NOTICE_NEWS_SAVED)
+        await state.messenger.send_message(user_id, reply)
+        return
+    # Вопрос заменяется ответом — кнопки исчезают.
+    original = ((update.get("message") or {}).get("body") or {}).get("text") or ""
+    text = f"{original}\n\n{reply}" if original else reply
+    await state.messenger.answer_callback(
+        callback_id, texts.NOTICE_NEWS_SAVED, {"text": text, "format": "html", "attachments": []}
     )
 
 
@@ -55,7 +89,11 @@ async def handle_callback(state, update: dict) -> None:
     user_id = str((callback.get("user") or {}).get("user_id") or "")
     if not user_id:
         return
-    parsed = parse_callback(str(callback.get("payload") or ""))
+    payload = str(callback.get("payload") or "")
+    if payload in NEWS_ANSWERS:
+        await handle_news(state, update, callback_id, user_id, payload)
+        return
+    parsed = parse_callback(payload)
     if parsed is None:
         await state.messenger.answer_callback(callback_id)
         return
@@ -86,7 +124,13 @@ async def process(state, update: dict) -> None:
             sender = (update.get("message") or {}).get("sender") or {}
             user_id = str(sender.get("user_id") or "")
             if user_id and not sender.get("is_bot"):
-                await send_welcome(state, user_id, first_name_of(sender))
+                body = (update.get("message") or {}).get("body") or {}
+                if str(body.get("text") or "").strip().startswith("/news"):
+                    with session_scope(state.session_factory) as session:
+                        subscribers.touch(session, user_id)
+                    await send_news_question(state, user_id)
+                else:
+                    await send_welcome(state, user_id, first_name_of(sender))
     except Exception as exc:  # фоновая задача не должна ронять процесс
         logger.error("Ошибка обработки события MAX: {}", type(exc).__name__)
 

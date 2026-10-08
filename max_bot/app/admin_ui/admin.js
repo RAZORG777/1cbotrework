@@ -572,7 +572,7 @@ async function runOp(button) {
     if (!(await confirmAction("Запустить очистку ПДн?", "Прошедшие активные записи станут завершёнными, закрытые старше срока хранения удалятся.", "Запустить"))) return;
     return withBusy(button, async () => {
       const r = await api("/maintenance/retention", { method: "POST" });
-      toast(`Завершено: ${r.finished}, удалено записей: ${r.deleted}, событий: ${r.events}`);
+      toast(`Завершено: ${r.finished}, удалено записей: ${r.deleted}, событий: ${r.events}, пользователей: ${r.users}`);
     });
   }
   if (op === "restart") {
@@ -631,7 +631,247 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#onec-method").addEventListener("change", syncOnecFields);
   $("#onec-form").addEventListener("submit", runOnec);
   syncOnecFields();
+  bc.init();
   showTab(location.hash.slice(1) || "overview");
   if (currentTab !== "overview") loadOverview();
   setInterval(() => { if (currentTab === "overview" && !document.hidden) loadOverview(); }, 15000);
 });
+
+/* ---------- Рассылки (specs/007-broadcasts) ---------- */
+
+const bc = {
+  kind: "service",
+  image: "",
+  limits: { text: 4096, caption: 1024, button: 40 },
+  timer: null,
+  countTimer: null,
+
+  els() {
+    return {
+      text: $("#bc-text"), audience: $("#bc-audience"), branch: $("#bc-branch"),
+      button: $("#bc-button"), buttonText: $("#bc-button-text"), buttonUrl: $("#bc-button-url"),
+    };
+  },
+
+  draft() {
+    const e = this.els();
+    return {
+      kind: this.kind,
+      audience: e.audience.value,
+      branch: e.audience.value === "branch" ? e.branch.value : "",
+      text: e.text.value,
+      image: this.image,
+      button: { type: e.button.value, text: e.buttonText.value.trim(), url: e.buttonUrl.value.trim() },
+    };
+  },
+
+  save() {
+    try { localStorage.setItem("admin-bc-draft", JSON.stringify(this.draft())); } catch { /* нет хранилища */ }
+  },
+
+  restore() {
+    let d = null;
+    try { d = JSON.parse(localStorage.getItem("admin-bc-draft") || "null"); } catch { /* пусто */ }
+    if (!d) return;
+    const e = this.els();
+    this.setKind(d.kind || "service");
+    e.audience.value = d.audience || "all";
+    e.text.value = d.text || "";
+    e.button.value = (d.button && d.button.type) || "none";
+    e.buttonText.value = (d.button && d.button.text) || "";
+    e.buttonUrl.value = (d.button && d.button.url) || "";
+    this.image = d.image || "";
+    this.pendingBranch = d.branch || "";
+  },
+
+  setKind(kind) {
+    this.kind = kind;
+    $$("[data-kind]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.kind === kind)));
+    $("#bc-kind-hint").textContent = kind === "promo"
+      ? "Только тем, кто согласился получать новости. В сообщение добавится кнопка «Отписаться»."
+      : "Технические работы, изменения графика — всем, кто не заблокировал бота.";
+  },
+
+  visibleLength(text) {
+    const div = document.createElement("div");
+    div.innerHTML = renderTelegramHtml(text);
+    return div.textContent.trim().length;
+  },
+
+  preview() {
+    const d = this.draft();
+    const e = this.els();
+    $("#bc-branch-field").hidden = d.audience !== "branch";
+    $$("[data-btn-url]").forEach((el) => { el.hidden = d.button.type !== "url"; });
+    const limit = this.image ? this.limits.caption : this.limits.text;
+    const len = this.visibleLength(d.text);
+    const counter = $("#bc-count");
+    counter.textContent = `${len} / ${limit}${this.image ? " (с картинкой)" : ""}`;
+    counter.classList.toggle("err-text", len > limit);
+    $("#bc-preview-text").innerHTML = d.text.trim() ? renderTelegramHtml(d.text) : `<span class="muted">Текст появится здесь</span>`;
+    const img = $("#bc-preview-img");
+    img.hidden = !this.image;
+    if (this.image) img.src = API + "/broadcasts/image/" + encodeURIComponent(this.image);
+    $("#bc-image-name").textContent = this.image ? "загружена" : "не выбрана";
+    $("#bc-image-clear").hidden = !this.image;
+    const rows = [];
+    if (d.button.type === "book") rows.push([{ text: "Записаться", tone: "primary" }]);
+    if (d.button.type === "url") rows.push([{ text: d.button.text || "Подпись кнопки", tone: "" }]);
+    if (d.kind === "promo") rows.push([{ text: "Отписаться", tone: "" }]);
+    $("#bc-preview-kb").innerHTML = rows.map((row) => `<div class="kb-row">${row.map((b) => `<span class="${esc(b.tone)}">${esc(b.text)}</span>`).join("")}</div>`).join("");
+    e.text.setAttribute("aria-invalid", String(len > limit));
+    this.save();
+    clearTimeout(this.countTimer);
+    this.countTimer = setTimeout(() => this.count(), 250);
+  },
+
+  async count() {
+    const d = this.draft();
+    try {
+      const r = await api("/broadcasts/audience", { params: { kind: d.kind, audience: d.audience, branch: d.branch } });
+      this.recipients = r.count;
+      $("#bc-audience-count").textContent = `получателей: ${r.count}`;
+    } catch { $("#bc-audience-count").textContent = "получателей: ?"; }
+  },
+
+  showError(text) {
+    const el = $("#bc-error");
+    el.hidden = !text;
+    el.textContent = text || "";
+  },
+
+  wrap(tag) {
+    const ta = $("#bc-text");
+    const { selectionStart: a, selectionEnd: b, value } = ta;
+    const inner = value.slice(a, b) || (tag === "a" ? "текст ссылки" : "текст");
+    const open = tag === "a" ? '<a href="https://">' : `<${tag}>`;
+    const close = `</${tag}>`;
+    ta.value = value.slice(0, a) + open + inner + close + value.slice(b);
+    ta.focus();
+    if (tag === "a") { const pos = a + open.length - 2; ta.setSelectionRange(pos, pos); }
+    else ta.setSelectionRange(a + open.length, a + open.length + inner.length);
+    this.preview();
+  },
+
+  async upload(file) {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) return toast("Картинка больше 5 МБ", true);
+    $("#bc-image-name").textContent = "загрузка…";
+    try {
+      const res = await fetch(API + "/broadcasts/image", { method: "POST", headers: { "X-Admin-Request": "1", "Content-Type": file.type || "application/octet-stream" }, body: file, credentials: "same-origin" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data.detail && data.detail.message) || data.message || "Не удалось загрузить картинку");
+      this.image = data.image;
+    } catch (e) { toast(e.message, true); }
+    $("#bc-file").value = "";
+    this.preview();
+  },
+
+  errorText(e) {
+    const body = e && e.body;
+    return (body && (body.message || (body.detail && body.detail.message))) || describeError(e);
+  },
+
+  async test(button) {
+    this.showError("");
+    const chat = $("#bc-recipient").value;
+    if (!chat) return this.showError("Добавьте свой id в ADMIN_IDS в .env, чтобы отправлять пробные сообщения.");
+    button.disabled = true;
+    try {
+      await api("/broadcasts/test", { method: "POST", body: { ...this.draft(), chat_id: chat } });
+      toast("Пробное сообщение отправлено в " + chat);
+    } catch (e) { this.showError(this.errorText(e)); }
+    finally { button.disabled = false; }
+  },
+
+  async start(ev) {
+    ev.preventDefault();
+    this.showError("");
+    const d = this.draft();
+    await this.count();
+    const n = this.recipients ?? 0;
+    if (!n) return this.showError("Нет получателей для этой аудитории. Выберите других получателей или тип «Важное».");
+    const kindName = d.kind === "promo" ? "«Новости и акции»" : "«Важное»";
+    if (!(await confirmAction("Запустить рассылку?", `${kindName}: сообщение получат ${n} чел. Отменить отправку уже ушедших сообщений нельзя, остановить рассылку можно в любой момент.`, "Запустить"))) return;
+    const button = $("#bc-start");
+    button.disabled = true;
+    try {
+      const r = await api("/broadcasts", { method: "POST", body: d });
+      toast(`Рассылка №${r.id} запущена: ${r.total} получателей`);
+      $("#bc-text").value = "";
+      this.image = "";
+      this.preview();
+      this.load();
+    } catch (e) { this.showError(this.errorText(e)); }
+    finally { button.disabled = false; }
+  },
+
+  async stop(id, button) {
+    if (!(await confirmAction("Остановить рассылку?", `Рассылка №${id} остановится через несколько секунд. Уже отправленные сообщения останутся у получателей.`, "Остановить", true))) return;
+    await withBusy(button, async () => { await api(`/broadcasts/${id}/stop`, { method: "POST" }); toast("Рассылка остановлена"); this.load(); });
+  },
+
+  render(data) {
+    const s = data.subscribers;
+    $("#bc-subs").textContent = `пользователей ${s.total}: согласны на новости ${s.consent_yes}, отказались ${s.consent_no}, не ответили ${s.not_asked}, заблокировали бота ${s.blocked}`;
+    const STATUS = { sending: ["идёт", "accent"], done: ["готово", "ok"], stopped: ["остановлена", "warn"] };
+    const AUD = { all: "все", active: "с записью" };
+    const head = `<tr><th>№</th><th>Когда</th><th>Тип · кому</th><th>Текст</th><th>Ход</th><th></th></tr>`;
+    $("#bc-history").innerHTML = head + (data.items.length ? data.items.map((b) => {
+      const [label, cls] = STATUS[b.status] || [b.status, ""];
+      const done = b.sent + b.failed + b.blocked;
+      const pct = b.total ? Math.round((done / b.total) * 100) : 0;
+      return `<tr>
+        <td class="nowrap"><code>${esc(b.id)}</code></td>
+        <td class="nowrap">${esc(fmtTime(b.created_at))}<div class="muted small">${esc(b.created_by)}</div></td>
+        <td><span class="badge ${b.kind === "promo" ? "accent" : ""}">${b.kind === "promo" ? "новости" : "важное"}</span><div class="muted small">${esc(b.audience === "branch" ? b.branch : AUD[b.audience] || b.audience)}${b.image ? " · с картинкой" : ""}</div></td>
+        <td class="preview">${esc(b.preview)}</td>
+        <td class="nowrap"><span class="badge ${cls}">${esc(label)}</span> <span class="small">${b.sent} из ${b.total}</span>
+          <div class="progress"><span data-w="${pct}"></span></div>
+          ${b.failed || b.blocked ? `<div class="small muted">ошибок ${b.failed}, заблокировали ${b.blocked}</div>` : ""}</td>
+        <td class="actions">${b.status === "sending" ? `<button type="button" class="btn sm danger" data-bc-stop="${esc(b.id)}">Остановить</button>` : ""}</td>
+      </tr>`;
+    }).join("") : `<tr><td colspan="6" class="empty">Рассылок ещё не было</td></tr>`);
+    $$("#bc-history .progress > span").forEach((el) => { el.style.width = el.dataset.w + "%"; });
+  },
+
+  async load() {
+    clearTimeout(this.timer);
+    try {
+      const data = await api("/broadcasts");
+      this.limits = data.limits;
+      const branchSel = $("#bc-branch");
+      if (!branchSel.options.length) {
+        branchSel.innerHTML = data.branches.map((b) => `<option>${esc(b)}</option>`).join("");
+        if (this.pendingBranch) branchSel.value = this.pendingBranch;
+      }
+      const rec = $("#bc-recipient");
+      rec.innerHTML = data.recipients.length ? data.recipients.map((r) => `<option value="${esc(r)}">себе: ${esc(r)}</option>`).join("") : `<option value="">ADMIN_IDS пуст</option>`;
+      this.render(data);
+      this.preview();
+      if (currentTab === "broadcasts" && data.items.some((b) => b.status === "sending")) {
+        this.timer = setTimeout(() => this.load(), 2000);
+      }
+    } catch (e) {
+      $("#bc-history").innerHTML = `<tr><td class="empty">${esc(describeError(e))}</td></tr>`;
+    }
+  },
+
+  init() {
+    this.setKind("service");
+    this.restore();
+    $$("[data-kind]").forEach((b) => b.addEventListener("click", () => { this.setKind(b.dataset.kind); this.preview(); }));
+    ["#bc-text", "#bc-button-text", "#bc-button-url"].forEach((s) => $(s).addEventListener("input", () => this.preview()));
+    ["#bc-audience", "#bc-branch", "#bc-button"].forEach((s) => $(s).addEventListener("change", () => this.preview()));
+    $$("[data-wrap]").forEach((b) => b.addEventListener("click", () => this.wrap(b.dataset.wrap)));
+    $("#bc-file").addEventListener("change", (e) => this.upload(e.target.files[0]));
+    $("#bc-image-clear").addEventListener("click", () => { this.image = ""; this.preview(); });
+    $("#bc-test").addEventListener("click", (e) => this.test(e.currentTarget));
+    $("#bc-form").addEventListener("submit", (e) => this.start(e));
+    $("#bc-history").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-bc-stop]");
+      if (btn) this.stop(btn.dataset.bcStop, btn);
+    });
+  },
+};
+loaders.broadcasts = () => bc.load();

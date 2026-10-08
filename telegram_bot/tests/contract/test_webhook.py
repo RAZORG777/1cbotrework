@@ -27,8 +27,11 @@ async def test_requires_secret(client, mocks):
 async def test_start_and_duplicate(client, mocks):
     r = await client.post("/admin/webhook", json=start(), headers=HDR)
     assert r.json() == {"status": "ok"}
-    assert mocks["tg"].call_count == 1  # одно приветствие, без служебного «Обновление меню»
-    body = json.loads(mocks["tg"].calls.last.request.content)
+    # Приветствие и вопрос о новостях (specs/007-broadcasts), без служебного «Обновление меню».
+    assert mocks["tg"].call_count == 2
+    body = json.loads(mocks["tg"].calls[0].request.content)
+    question = json.loads(mocks["tg"].calls[1].request.content)
+    assert question["text"].startswith("Присылать вам новости")
     book = body["reply_markup"]["inline_keyboard"][0][0]
     assert book == {
         "text": "Записаться",
@@ -37,7 +40,7 @@ async def test_start_and_duplicate(client, mocks):
     }
     assert body["text"].startswith("Здравствуйте")
     await client.post("/admin/webhook", json=start(), headers=HDR)
-    assert mocks["tg"].call_count == 1
+    assert mocks["tg"].call_count == 2  # повтор того же update_id не обрабатывается
 
 
 async def test_stats_only_for_admin(client, mocks):

@@ -20,7 +20,7 @@ UI_DIR = Path(__file__).resolve().parent.parent / "admin_ui"
 UI_FILES = {"admin.css": "text/css", "admin.js": "text/javascript"}
 PAGE_HEADERS = {
     "Content-Security-Policy": (
-        "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; "
+        "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; "
         "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
     ),
 }

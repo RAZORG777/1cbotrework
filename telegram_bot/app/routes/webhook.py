@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Request
 from loguru import logger
 from sqlalchemy import func, select
 
-from .. import keyboards, metrics, texts
+from .. import keyboards, metrics, subscribers, texts
 from ..auth import require_tg_webhook_secret
 from ..db import mark_processed, session_scope
 from ..models import STATUS_ACTIVE, Appointment
@@ -15,11 +15,40 @@ from ..visit_actions import handle_button, parse_callback
 router = APIRouter()
 
 
+NEWS_ANSWERS = {
+    keyboards.NEWS_YES: (True, texts.NEWS_YES),
+    keyboards.NEWS_NO: (False, texts.NEWS_NO),
+    keyboards.NEWS_OFF: (False, texts.UNSUBSCRIBED),
+}
+
+
+async def handle_news(state, query: dict, user_id: str, data: str) -> None:
+    """Ответ на вопрос о новостях или «Отписаться» из рассылки (specs/007-broadcasts)."""
+    consent, reply = NEWS_ANSWERS[data]
+    with session_scope(state.session_factory) as session:
+        subscribers.set_consent(session, user_id, consent)
+    await state.messenger.answer_callback(str(query.get("id", "")), texts.NOTICE_NEWS_SAVED)
+    message = query.get("message") or {}
+    chat_id = str((message.get("chat") or {}).get("id") or user_id)
+    # У вопроса кнопки убираются; у рассылки остаются (там может быть «Записаться»).
+    if data != keyboards.NEWS_OFF and message.get("message_id") is not None:
+        await state.messenger.edit_reply_markup(chat_id, message["message_id"])
+    await state.messenger.send_message(chat_id, reply)
+
+
+async def send_news_question(state, chat_id: str) -> None:
+    await state.messenger.send_message(chat_id, texts.NEWS_QUESTION, keyboards.news_question())
+
+
 async def handle_callback(state, query: dict) -> None:
-    """Кнопки напоминания (этап 2); прочие нажатия только подтверждаются."""
+    """Кнопки напоминания (этап 2) и новостей; прочие нажатия только подтверждаются."""
     query_id = str(query.get("id", ""))
-    parsed = parse_callback(str(query.get("data") or ""))
+    data = str(query.get("data") or "")
     user_id = str((query.get("from") or {}).get("id") or "")
+    if user_id and data in NEWS_ANSWERS:
+        await handle_news(state, query, user_id, data)
+        return
+    parsed = parse_callback(data)
     if parsed is None or not user_id:
         await state.messenger.answer_callback(query_id)
         return
@@ -59,6 +88,9 @@ async def telegram_webhook(request: Request) -> dict:
         text = message.get("text") or ""
         if not chat_id:
             return {"status": "ok"}
+        with session_scope(state.session_factory) as session:
+            subscribers.touch(session, chat_id)
+            ask = subscribers.needs_question(session, chat_id)
 
         if text.startswith("/start"):
             first_name = (message.get("from") or {}).get("first_name")
@@ -67,7 +99,11 @@ async def telegram_webhook(request: Request) -> dict:
                 texts.welcome(first_name),
                 keyboards.welcome(settings.WEBAPP_URL, settings.WEBAPP_URL2),
             )
+            if ask:
+                await send_news_question(state, chat_id)
             logger.info("/start: chat_id={}", chat_id)
+        elif text.startswith("/news"):
+            await send_news_question(state, chat_id)
         elif text.startswith("/stats") and chat_id in settings.admin_ids:
             with session_scope(state.session_factory) as session:
                 active = session.scalar(

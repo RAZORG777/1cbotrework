@@ -37,6 +37,7 @@
     <button role="tab" data-tab="jobs">Задания</button>
     <button role="tab" data-tab="appointments">Записи</button>
     <button role="tab" data-tab="onec">1С</button>
+    <button role="tab" data-tab="broadcasts">Рассылки</button>
     <button role="tab" data-tab="messages">Сообщения</button>
     <button role="tab" data-tab="settings">Настройки</button>
   </nav>
@@ -193,6 +194,100 @@
         </div>
         <div id="onec-pick"></div>
         <pre class="json" id="onec-body">Выберите метод и нажмите «Выполнить».</pre>
+      </div>
+    </section>
+
+    <!-- Рассылки -->
+    <section id="tab-broadcasts" class="tab-panel" role="tabpanel" hidden>
+      <div class="section-head">
+        <h1>Рассылки</h1>
+        <span class="muted small" id="bc-subs"></span>
+      </div>
+      <div class="grid compose">
+        <form class="card bc-form" id="bc-form" autocomplete="off">
+          <h2>Новая рассылка</h2>
+          <div class="field">
+            <span>Тип</span>
+            <div class="seg wide" role="radiogroup" aria-label="Тип рассылки">
+              <button type="button" data-kind="service" aria-pressed="true">Важное</button>
+              <button type="button" data-kind="promo" aria-pressed="false">Новости и акции</button>
+            </div>
+            <p class="muted small" id="bc-kind-hint"></p>
+          </div>
+          <div class="row gap wrap">
+            <label class="field grow">
+              <span>Кому</span>
+              <select id="bc-audience">
+                <option value="all">всем пользователям</option>
+                <option value="active">пациентам с активной записью</option>
+                <option value="branch">пациентам филиала</option>
+              </select>
+            </label>
+            <label class="field grow" id="bc-branch-field" hidden>
+              <span>Филиал</span>
+              <select id="bc-branch"></select>
+            </label>
+          </div>
+          <div class="field">
+            <div class="row between"><span>Текст</span><span class="small muted" id="bc-count">0</span></div>
+            <div class="fmt" role="toolbar" aria-label="Оформление текста">
+              <button type="button" class="btn sm" data-wrap="b" title="Жирный"><b>Ж</b></button>
+              <button type="button" class="btn sm" data-wrap="i" title="Курсив"><i>К</i></button>
+              <button type="button" class="btn sm" data-wrap="u" title="Подчёркнутый"><u>Ч</u></button>
+              <button type="button" class="btn sm" data-wrap="s" title="Зачёркнутый"><s>З</s></button>
+              <button type="button" class="btn sm" data-wrap="a" title="Ссылка">Ссылка</button>
+            </div>
+            <textarea id="bc-text" rows="8" placeholder="Например: 12 октября с 9:00 до 11:00 запись через бота будет недоступна — ведутся технические работы."></textarea>
+          </div>
+          <div class="field">
+            <span>Картинка (JPEG или PNG до 5 МБ)</span>
+            <div class="row gap wrap">
+              <label class="btn" for="bc-file">Выбрать файл</label>
+              <input type="file" id="bc-file" accept="image/jpeg,image/png" class="visually-hidden">
+              <span class="small muted" id="bc-image-name">не выбрана</span>
+              <button type="button" class="btn sm" id="bc-image-clear" hidden>Убрать</button>
+            </div>
+          </div>
+          <div class="row gap wrap">
+            <label class="field">
+              <span>Кнопка</span>
+              <select id="bc-button">
+                <option value="none">без кнопки</option>
+                <option value="book">«Записаться» (откроет форму)</option>
+                <option value="url">ссылка</option>
+              </select>
+            </label>
+            <label class="field grow" data-btn-url hidden>
+              <span>Подпись кнопки</span>
+              <input id="bc-button-text" maxlength="40" placeholder="Подробнее">
+            </label>
+            <label class="field grow" data-btn-url hidden>
+              <span>Ссылка</span>
+              <input id="bc-button-url" type="url" placeholder="https://yasno-vizhu.com/…">
+            </label>
+          </div>
+          <div class="bc-actions">
+            <div class="row gap wrap">
+              <select id="bc-recipient" aria-label="Кому отправить пробное сообщение"></select>
+              <button type="button" class="btn" id="bc-test">Отправить себе</button>
+            </div>
+            <button type="submit" class="btn primary" id="bc-start">Запустить рассылку</button>
+          </div>
+          <p class="small err-text" id="bc-error" hidden></p>
+        </form>
+        <div class="card bc-preview">
+          <div class="row between"><h2>Предпросмотр</h2><span class="badge accent" id="bc-audience-count">…</span></div>
+          <div class="phone">
+            <div class="bubble-wrap">
+              <img id="bc-preview-img" alt="" hidden>
+              <div class="bubble" id="bc-preview-text"><span class="muted">Текст появится здесь</span></div>
+            </div>
+            <div class="kb" id="bc-preview-kb"></div>
+          </div>
+        </div>
+      </div>
+      <div class="card flush">
+        <div class="table-wrap"><table class="data" id="bc-history"></table></div>
       </div>
     </section>
 

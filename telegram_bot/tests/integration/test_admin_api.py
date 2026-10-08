@@ -81,7 +81,7 @@ async def test_overview_counts_and_counters(client):
     assert o["bot"] == "telegram" and o["appointments"]["active"] == 1
     assert o["counters"]["bookings"] == 1 and o["counters"]["messages_sent"] >= 1
     assert o["jobs"]["total"] >= 3  # 2 напоминания + ночная очистка
-    assert o["db"]["schema"] == 2 and o["log_level"] == "INFO"
+    assert o["db"]["schema"] == 3 and o["log_level"] == "INFO"
 
 
 async def test_health_checks(client, mocks):
@@ -275,7 +275,7 @@ async def test_webhook_register_and_maintenance(client, app, mocks):
     assert sent["url"] == "https://app.test/admin/webhook" and sent["secret_token"]
 
     r = await post(client, "/api/maintenance/retention")
-    assert set(r.json()) == {"finished", "deleted", "events"}
+    assert set(r.json()) == {"finished", "deleted", "events", "users"}
 
     stopped = []
     app.state.stop_process = lambda: stopped.append(True)

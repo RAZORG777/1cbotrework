@@ -69,3 +69,55 @@ class ProcessedEvent(Base):
 
     key: Mapped[str] = mapped_column(String, primary_key=True)
     created_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+# --- Рассылки (specs/007-broadcasts) -------------------------------------------------------
+
+
+class Subscriber(Base):
+    """Пользователь бота: только id мессенджера и даты, без ФИО и телефона."""
+
+    __tablename__ = "subscribers"
+
+    user_id: Mapped[str] = mapped_column(String, primary_key=True)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime)
+    # None — не спрашивали, True — согласен на новости и акции, False — отказался.
+    news_consent: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    consent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    blocked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class Broadcast(Base):
+    __tablename__ = "broadcasts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime)
+    created_by: Mapped[str] = mapped_column(String, default="")
+    kind: Mapped[str] = mapped_column(String)  # service | promo
+    audience: Mapped[str] = mapped_column(String)  # all | active | branch
+    branch: Mapped[str] = mapped_column(String, default="")
+    text: Mapped[str] = mapped_column(String)
+    image: Mapped[str] = mapped_column(String, default="")
+    button_type: Mapped[str] = mapped_column(String, default="none")  # none | book | url
+    button_text: Mapped[str] = mapped_column(String, default="")
+    button_url: Mapped[str] = mapped_column(String, default="")
+    status: Mapped[str] = mapped_column(String, default="sending")  # sending | done | stopped
+    total: Mapped[int] = mapped_column(Integer, default=0)
+    sent: Mapped[int] = mapped_column(Integer, default=0)
+    failed: Mapped[int] = mapped_column(Integer, default=0)
+    blocked: Mapped[int] = mapped_column(Integer, default=0)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class BroadcastRecipient(Base):
+    """Получатели фиксируются при запуске; строки удаляются по завершении рассылки."""
+
+    __tablename__ = "broadcast_recipients"
+
+    broadcast_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[str] = mapped_column(String, primary_key=True)
+    state: Mapped[str] = mapped_column(
+        String, default="pending"
+    )  # pending | sent | failed | blocked

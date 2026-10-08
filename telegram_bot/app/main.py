@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from loguru import logger
 from sqlalchemy import select
 
-from . import metrics
+from . import broadcasts, metrics
 from .config import Settings, load_settings
 from .db import init_db, make_engine, make_session_factory, now_msk, session_scope
 from .logging import mask_pii, setup_logging
@@ -31,7 +31,7 @@ from .reminders import (
     schedule_reminders,
     set_runtime,
 )
-from .routes import admin, admin_api, health, internal, webapp, webhook
+from .routes import admin, admin_api, broadcasts_api, health, internal, webapp, webhook
 
 ADMIN_HEADERS = {
     "Cache-Control": "no-store",
@@ -88,9 +88,11 @@ def create_app(
             )
         restored = sum(schedule_reminders(scheduler, a, now_msk()) for a in active)
         logger.info("Бот запущен, восстановлено напоминаний: {}", restored)
+        broadcasts.resume(app.state)
         try:
             yield
         finally:
+            await broadcasts.shutdown(app.state)
             scheduler.shutdown(wait=False)
             engine.dispose()
             logger.info("Бот остановлен")
@@ -157,7 +159,7 @@ def create_app(
         StaticFiles(directory=webapp.APP_DIR / "assets", check_dir=False),
         name="webapp-assets",
     )
-    for module in (health, webapp, internal, webhook, admin, admin_api):
+    for module in (health, webapp, internal, webhook, admin, admin_api, broadcasts_api):
         app.include_router(module.router)
     return app
 

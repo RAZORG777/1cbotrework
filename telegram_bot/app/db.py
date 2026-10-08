@@ -1,4 +1,4 @@
-"""БД бота: engine, сессии, миграции схемы v0 → v1 → v2 (data-model.md › Миграция)."""
+"""БД бота: engine, сессии, миграции схемы v0 → v1 → v2 → v3 (data-model.md › Миграция)."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from .models import STATUS_ACTIVE, STATUS_FINISHED, Base, ProcessedEvent
 
 MSK = ZoneInfo("Europe/Moscow")
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def now_msk() -> datetime:
@@ -117,7 +117,7 @@ def _migrate_v0(engine: Engine, db_file: Path) -> None:
         # Задания старого кода ссылаются на удалённые функции — пересоздаются при старте.
         if inspect(conn).has_table("apscheduler_jobs"):
             conn.exec_driver_sql("DELETE FROM apscheduler_jobs")
-        conn.exec_driver_sql(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        conn.exec_driver_sql("PRAGMA user_version = 1")
     logger.info("Миграция БД v0 → v1: перенесено строк {}", moved)
 
 
@@ -132,7 +132,6 @@ def init_db(engine: Engine, db_file: Path) -> None:
         )
     if old_schema:
         _migrate_v0(engine, db_file)
-        return
     Base.metadata.create_all(engine)
     with engine.begin() as conn:
         # v1 → v2 (этап 2): колонка confirmed_at; данные не копируются.
@@ -140,6 +139,17 @@ def init_db(engine: Engine, db_file: Path) -> None:
         if "confirmed_at" not in columns:
             conn.exec_driver_sql("ALTER TABLE appointments ADD COLUMN confirmed_at DATETIME")
             logger.info("Миграция БД v1 → v2: добавлена колонка confirmed_at")
+        # v2 → v3 (specs/007-broadcasts): таблицы рассылок созданы create_all; список
+        # пользователей заполняется пациентами из текущих записей.
+        if _user_version(conn) < 3:
+            added = conn.execute(
+                text(
+                    "INSERT OR IGNORE INTO subscribers (user_id, first_seen_at, last_seen_at)"
+                    " SELECT user_id, MIN(created_at), MAX(created_at) FROM appointments"
+                    " WHERE user_id != '' GROUP BY user_id"
+                )
+            ).rowcount
+            logger.info("Миграция БД v2 → v3: пользователей из записей {}", added)
         if _user_version(conn) < SCHEMA_VERSION:
             conn.exec_driver_sql(f"PRAGMA user_version = {SCHEMA_VERSION}")
 

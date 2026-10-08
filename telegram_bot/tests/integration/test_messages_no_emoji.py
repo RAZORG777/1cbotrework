@@ -38,13 +38,13 @@ async def test_whole_journey_without_emoji(client, mocks, app):
         SIGNAL.format("cancel-visit"), json={"appointment_id": "appt-1"}, headers=secret
     )
     messages = sent(mocks)
-    assert len(messages) == 8
+    assert len(messages) == 9  # + вопрос о новостях после приветствия
     for m in messages:
         assert not EMOJI.search(m["text"]), m["text"]
         for row in (m.get("reply_markup") or {}).get("inline_keyboard", []):
             for button in row:
                 assert not EMOJI.search(button["text"]), button["text"]
-    booked = messages[1]
+    booked = messages[2]
     assert booked["text"].startswith("Агриппина Ивановна, вы успешно записаны на приём.")
     labels = [b["text"] for row in booked["reply_markup"]["inline_keyboard"] for b in row]
     assert labels == ["Как добраться", "Моя запись"]

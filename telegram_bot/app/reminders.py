@@ -19,6 +19,7 @@ from .models import (
     STATUS_FINISHED,
     Appointment,
     ProcessedEvent,
+    Subscriber,
 )
 
 REMINDER_PREFIXES = ("rem24h_", "rem2h_")
@@ -161,14 +162,19 @@ def run_retention(session: Session, retention_days: int, now: datetime) -> dict:
     events = session.execute(
         delete(ProcessedEvent).where(ProcessedEvent.created_at < now - PROCESSED_EVENTS_TTL)
     ).rowcount
-    if finished or deleted or events:
+    # Заблокировавшие бота пользователи (specs/007-broadcasts, FR-010).
+    users = session.execute(
+        delete(Subscriber).where(Subscriber.blocked_at < now - timedelta(days=retention_days))
+    ).rowcount
+    if finished or deleted or events or users:
         logger.info(
-            "Очистка: завершено {}, удалено записей {}, удалено событий {}",
+            "Очистка: завершено {}, удалено записей {}, событий {}, пользователей {}",
             finished,
             deleted,
             events,
+            users,
         )
-    return {"finished": finished, "deleted": deleted, "events": events}
+    return {"finished": finished, "deleted": deleted, "events": events, "users": users}
 
 
 def register_retention(scheduler: AsyncIOScheduler) -> None:

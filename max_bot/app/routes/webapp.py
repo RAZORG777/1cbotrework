@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from .. import keyboards, metrics, texts
+from .. import keyboards, metrics, subscribers, texts
 from ..auth import WebAppUser, current_user
 from ..config import BASE_DIR
 from ..db import now_msk, session_scope
@@ -315,6 +315,8 @@ async def book(
     schedule_reminders(state.scheduler, appt, now)
     logger.info("Записан: user_id={} appointment_id={}", user.id, appointment_id)
     metrics.inc("bookings")
+    with session_scope(state.session_factory) as session:
+        subscribers.touch(session, user.id)
     log_patient_result(response, appointment_id)
 
     background.add_task(

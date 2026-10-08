@@ -44,13 +44,17 @@ async def test_get_webhook_removed(client):
 async def test_welcome_open_app_and_duplicate(client, mocks):
     r = await client.post("/max/webhook", json=started(), headers=HDR)
     assert r.json() == {"status": "ok"}
-    body = json.loads(mocks["msg"].calls.last.request.content)
+    # Приветствие и вопрос о новостях (specs/007-broadcasts).
+    assert mocks["msg"].call_count == 2
+    body = json.loads(mocks["msg"].calls[0].request.content)
+    question = json.loads(mocks["msg"].calls[1].request.content)
+    assert question["text"].startswith("Присылать вам новости")
     button = body["attachments"][0]["payload"]["buttons"][0][0]
     assert button == {"type": "open_app", "text": "Записаться", "web_app": "yasno_bot"}
     assert "user_id=" not in json.dumps(body)
     assert mocks["msg"].calls.last.request.headers["authorization"] == "123456:TEST-TOKEN"
     await client.post("/max/webhook", json=started(), headers=HDR)
-    assert mocks["msg"].call_count == 1
+    assert mocks["msg"].call_count == 2  # повтор события не обрабатывается
 
 
 async def test_confirm_visit_button(client, mocks):
