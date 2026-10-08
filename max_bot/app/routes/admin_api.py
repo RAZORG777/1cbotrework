@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import os
 import platform
+import re
 import signal
 from collections import Counter
 from datetime import datetime, timedelta
@@ -366,11 +367,39 @@ async def appointment_close(
 # --- 1С ------------------------------------------------------------------------------------
 
 
+GUID_RE = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def onec_params_problem(method: str, params: dict) -> str | None:
+    """Проверка до вызова 1С: пустой или кривой doctor_id 1С не разбирает и отвечает 500."""
+    if method in ("services", "schedule"):
+        doctor_id = params.get("doctor_id", "")
+        if not doctor_id:
+            return "Укажите doctor_id — GUID врача. Его можно взять из ответа метода doctors."
+        if not GUID_RE.match(doctor_id):
+            return "doctor_id должен быть GUID вида 8f2c1a4e-2b7d-11ef-a1b3-005056b0c0de."
+    if method == "schedule":
+        has_day = bool(params.get("date"))
+        has_range = bool(params.get("start_date") and params.get("end_date"))
+        if not (has_day or has_range):
+            return "Для schedule укажите дату или обе даты периода «С» и «По»."
+    for key in ("date", "start_date", "end_date"):
+        if params.get(key) and not DATE_RE.match(params[key]):
+            return f"{key}: дата в формате ГГГГ-ММ-ДД."
+    return None
+
+
 @router.get("/onec/{method}")
 async def onec_console(method: str, request: Request, admin: str = Depends(require_admin)) -> dict:
     if method not in admin_tools.ONEC_READ_METHODS:
         raise _not_found()
     params = {k: v for k, v in request.query_params.items() if k in admin_tools.ONEC_PARAMS and v}
+    problem = onec_params_problem(method, params)
+    if problem:
+        raise HTTPException(status_code=422, detail={"error": "BAD_PARAMS", "message": problem})
     return await admin_tools.onec_request(request.app.state, method, params)
 
 

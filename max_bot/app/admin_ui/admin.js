@@ -468,16 +468,43 @@ function highlightJson(value) {
     .replace(/:\s(-?\d+(?:\.\d+)?)/g, ': <span class="n">$1</span>');
 }
 
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/* Та же проверка, что на сервере: в 1С не уходит запрос, который она не разберёт. */
+function onecProblem(method, p) {
+  if (method === "services" || method === "schedule") {
+    if (!p.doctor_id) return "Укажите doctor_id — GUID врача. Выполните метод doctors и нажмите на врача: id подставится сам.";
+    if (!GUID.test(p.doctor_id.trim())) return "doctor_id должен быть GUID вида 8f2c1a4e-2b7d-11ef-a1b3-005056b0c0de.";
+  }
+  if (method === "schedule" && !p.date && !(p.start_date && p.end_date)) return "Для schedule укажите дату или обе даты периода «С» и «По».";
+  return null;
+}
+
+function showOnecHint(method, text) {
+  $("#onec-title").textContent = "GET " + method;
+  $("#onec-meta").innerHTML = `<span class="badge warn">не отправлено</span>`;
+  $("#onec-pick").innerHTML = "";
+  $("#onec-body").textContent = text;
+}
+
 async function runOnec(ev) {
   ev.preventDefault();
   const method = $("#onec-method").value;
   const form = $("#onec-form");
   const params = {};
-  for (const name of ONEC_FIELDS[method]) params[name] = form.elements[name].value;
+  for (const name of ONEC_FIELDS[method]) params[name] = form.elements[name].value.trim();
   const btn = $("button[type=submit]", form);
+  const problem = onecProblem(method, params);
+  if (problem) return showOnecHint(method, problem);
   await withBusy(btn, async () => {
     $("#onec-meta").textContent = "запрос…";
-    const r = await api("/onec/" + method, { params });
+    let r;
+    try {
+      r = await api("/onec/" + method, { params });
+    } catch (e) {
+      if (e.body && e.body.error === "BAD_PARAMS") return showOnecHint(method, e.body.message);
+      throw e;
+    }
     $("#onec-title").textContent = "GET " + method;
     const ok = r.http_status === 200;
     $("#onec-meta").innerHTML = `<span class="badge ${ok ? "ok" : "err"}">${esc(r.http_status ?? r.error)}</span> <span class="muted">${esc(r.ms)} мс</span>`;

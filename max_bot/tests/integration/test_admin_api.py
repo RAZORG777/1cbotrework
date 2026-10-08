@@ -273,3 +273,25 @@ async def test_legacy_endpoints_still_work(client):
     await client.post("/max/book", json=booking(), headers=auth(5))
     r = await client.post(f"{BASE}/send-reminder?appointment_id=appt-1&kind=2h", auth=ADMIN)
     assert r.json() == {"status": "ok"}
+
+
+async def test_onec_console_checks_params_before_1c(client, mocks):
+    """Пустой или кривой doctor_id 1С не разбирает (HTTP 500) — запрос в 1С не уходит."""
+    calls = mocks["schedule"].call_count
+    for params, word in (
+        ({}, "doctor_id"),
+        ({"doctor_id": "1"}, "GUID"),
+        ({"doctor_id": "8f2c1a4e-2b7d-11ef-a1b3-005056b0c0de"}, "дату"),
+        ({"doctor_id": "8f2c1a4e-2b7d-11ef-a1b3-005056b0c0de", "date": "10.01.2030"}, "ГГГГ"),
+    ):
+        r = await get(client, "/api/onec/schedule", params=params)
+        assert r.status_code == 422 and r.json()["error"] == "BAD_PARAMS"
+        assert word in r.json()["message"]
+    assert (await get(client, "/api/onec/services")).status_code == 422
+    assert mocks["schedule"].call_count == calls
+    ok = await get(
+        client,
+        "/api/onec/schedule",
+        params={"doctor_id": "8f2c1a4e-2b7d-11ef-a1b3-005056b0c0de", "date": "2030-01-10"},
+    )
+    assert ok.json()["http_status"] == 200 and mocks["schedule"].call_count == calls + 1
