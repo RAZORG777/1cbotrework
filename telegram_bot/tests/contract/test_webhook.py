@@ -2,6 +2,7 @@
 
 import json
 
+from app import texts
 from tests.helpers import TG_SECRET
 
 HDR = {"X-Telegram-Bot-Api-Secret-Token": TG_SECRET}
@@ -31,7 +32,7 @@ async def test_start_and_duplicate(client, mocks):
     assert mocks["tg"].call_count == 2
     body = json.loads(mocks["tg"].calls[0].request.content)
     question = json.loads(mocks["tg"].calls[1].request.content)
-    assert question["text"].startswith("Присылать вам новости")
+    assert question["text"] == texts.NEWS_QUESTION
     book = body["reply_markup"]["inline_keyboard"][0][0]
     assert book == {
         "text": "Записаться",

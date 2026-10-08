@@ -2,6 +2,7 @@
 
 import json
 
+from app import texts
 from tests.helpers import MAX_SECRET, ONEC_SECRET, auth, booking
 
 HDR = {"X-Max-Bot-Api-Secret": MAX_SECRET}
@@ -48,7 +49,7 @@ async def test_welcome_open_app_and_duplicate(client, mocks):
     assert mocks["msg"].call_count == 2
     body = json.loads(mocks["msg"].calls[0].request.content)
     question = json.loads(mocks["msg"].calls[1].request.content)
-    assert question["text"].startswith("Присылать вам новости")
+    assert question["text"] == texts.NEWS_QUESTION
     button = body["attachments"][0]["payload"]["buttons"][0][0]
     assert button == {"type": "open_app", "text": "Записаться", "web_app": "yasno_bot"}
     assert "user_id=" not in json.dumps(body)

@@ -10,7 +10,7 @@ import httpx
 import pytest
 from sqlalchemy import select
 
-from app import broadcasts
+from app import broadcasts, texts
 from app.db import init_db, make_engine, make_session_factory, now_msk, session_scope
 from app.models import Appointment, Base, Broadcast, BroadcastRecipient, Subscriber
 from app.reminders import run_retention
@@ -90,12 +90,12 @@ def draft(**kw) -> dict:
 async def test_start_asks_once_and_saves_answer(client, mocks, app):
     await client.post("/admin/webhook", json=message(11), headers=HOOK)
     texts_sent = [b["text"] for b in tg_bodies(mocks, "sendMessage")]
-    assert texts_sent[0].startswith("Здравствуйте") and texts_sent[1].startswith("Присылать")
+    assert texts_sent[0].startswith("Здравствуйте") and texts_sent[1] == texts.NEWS_QUESTION
     question = tg_bodies(mocks, "sendMessage")[1]["reply_markup"]["inline_keyboard"][0]
     assert [b["callback_data"] for b in question] == ["n:yes", "n:no"]
 
     await client.post("/admin/webhook", json=callback(11, "n:yes"), headers=HOOK)
-    assert tg_bodies(mocks, "sendMessage")[-1]["text"].startswith("Спасибо! Будем присылать")
+    assert tg_bodies(mocks, "sendMessage")[-1]["text"] == texts.NEWS_YES
     assert tg_bodies(mocks, "editMessageReplyMarkup")  # кнопки вопроса убраны
     with session_scope(app.state.session_factory) as s:
         sub = s.get(Subscriber, "11")
@@ -105,13 +105,13 @@ async def test_start_asks_once_and_saves_answer(client, mocks, app):
     await client.post("/admin/webhook", json=message(11), headers=HOOK)
     assert len(tg_bodies(mocks, "sendMessage")) == before + 1  # только приветствие
     await client.post("/admin/webhook", json=message(11, "/news"), headers=HOOK)
-    assert tg_bodies(mocks, "sendMessage")[-1]["text"].startswith("Присылать")
+    assert tg_bodies(mocks, "sendMessage")[-1]["text"] == texts.NEWS_QUESTION
 
 
 async def test_unsubscribe_button(client, mocks, app):
     await users(client, (12, "n:yes"))
     await client.post("/admin/webhook", json=callback(12, "n:off"), headers=HOOK)
-    assert tg_bodies(mocks, "sendMessage")[-1]["text"].startswith("Вы отписались")
+    assert tg_bodies(mocks, "sendMessage")[-1]["text"] == texts.UNSUBSCRIBED
     with session_scope(app.state.session_factory) as s:
         assert s.get(Subscriber, "12").news_consent is False
 

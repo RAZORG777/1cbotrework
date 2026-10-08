@@ -11,7 +11,7 @@ import httpx
 import pytest
 from sqlalchemy import select
 
-from app import broadcasts
+from app import broadcasts, texts
 from app.db import init_db, make_engine, make_session_factory, now_msk, session_scope
 from app.models import Appointment, Base, Broadcast, BroadcastRecipient, Subscriber
 from app.reminders import run_retention
@@ -102,7 +102,7 @@ async def test_start_asks_once_and_saves_answer(client, mocks, app):
     await client.post("/max/webhook", json=started(11), headers=HOOK)
     msgs = sent(mocks)
     assert msgs[0][1]["text"].startswith("Здравствуйте")
-    assert msgs[1][1]["text"].startswith("Присылать")
+    assert msgs[1][1]["text"] == texts.NEWS_QUESTION
     assert [b["payload"] for b in buttons(msgs[1][1])[0]] == ["news:yes", "news:no"]
 
     await client.post("/max/webhook", json=callback(11, "news:yes"), headers=HOOK)
@@ -118,13 +118,13 @@ async def test_start_asks_once_and_saves_answer(client, mocks, app):
     await client.post("/max/webhook", json=started(11), headers=HOOK)
     assert mocks["msg"].call_count == before + 1  # только приветствие
     await client.post("/max/webhook", json=text_message(11, "/news"), headers=HOOK)
-    assert sent(mocks)[-1][1]["text"].startswith("Присылать")
+    assert sent(mocks)[-1][1]["text"] == texts.NEWS_QUESTION
 
 
 async def test_unsubscribe_button(client, mocks, app):
     await users(client, (12, "news:yes"))
     await client.post("/max/webhook", json=callback(12, "news:off"), headers=HOOK)
-    assert sent(mocks)[-1][1]["text"].startswith("Вы отписались")
+    assert sent(mocks)[-1][1]["text"] == texts.UNSUBSCRIBED
     with session_scope(app.state.session_factory) as s:
         assert s.get(Subscriber, "12").news_consent is False
 
