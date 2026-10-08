@@ -84,6 +84,11 @@ Settings → Branches → Branch protection для `main` обязательну
 4. **Сеть.** Боты слушают `127.0.0.1` (`HOST`). HTTPS-прокси на порту 443 должен стоять на том же
    сервере; если он на другом, укажите `HOST` явно.
 5. **Вебхуки.** В каталоге каждого бота выполните `python -m scripts.register_webhook`.
+   Серверы Telegram не достают до сервера клиники напрямую (соединение режется по пути),
+   поэтому апдейты Telegram идут через Cloudflare Worker `tg-webhook-yasno`
+   ([deploy/cloudflare/tg-webhook-relay.js](deploy/cloudflare/tg-webhook-relay.js)):
+   в `telegram_bot/.env` — `TG_WEBHOOK_URL=https://tg-webhook-yasno.danicimo08.workers.dev/telegram`.
+   Исходящие запросы к Bot API идут через `tg-proxy-yasno` (`TELEGRAM_API_BASE`).
 6. **MAX.** В кабинете партнёра MAX привяжите к боту мини-приложение `https://<домен>/max/`.
    Значение `MAX_MINIAPP` — то, что платформа ждёт в кнопке `open_app` (обычно ник бота).
 7. **1С.** Установите расширение `Бот_Интеграция` по [onec/extension/README.md](onec/extension/README.md)
