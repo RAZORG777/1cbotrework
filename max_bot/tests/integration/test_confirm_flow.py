@@ -1,4 +1,4 @@
-"""Этап 2: кнопки «Подтверждаю / Отменить» в напоминаниях MAX (specs/003-visit-confirmation)."""
+"""Кнопки «Приду / Отменить запись» в напоминаниях MAX (specs/003-visit-confirmation, 005)."""
 
 import json
 
@@ -54,7 +54,7 @@ async def test_confirm_onec_down_keeps_buttons(client, app, mocks):
     mocks["confirm"].respond(503)
     await client.post("/max/webhook", json=press("confirm:appt-1"), headers=HDR)
     assert "message" not in answers(mocks)[-1]
-    assert "Попробуйте" in json.loads(mocks["msg"].calls.last.request.content)["text"]
+    assert "Нажмите кнопку ещё раз" in json.loads(mocks["msg"].calls.last.request.content)["text"]
 
 
 async def test_confirm_cancelled_in_1c(client, app, mocks):
@@ -89,14 +89,19 @@ async def test_reminder_keyboard(client, app, mocks):
     await client.post("/max/book", json=booking(), headers=auth(5))
     await send_reminder("appt-1", "24h")
     body = json.loads(mocks["msg"].calls.last.request.content)
-    buttons = [b["payload"] for row in body["attachments"][0]["payload"]["buttons"] for b in row]
-    assert buttons == ["confirm:appt-1", "cancel:appt-1"]
+    rows = body["attachments"][0]["payload"]["buttons"]
+    buttons = [(b["text"], b.get("payload"), b.get("intent")) for row in rows for b in row]
+    assert buttons[:2] == [
+        ("Приду", "confirm:appt-1", "positive"),
+        ("Отменить запись", "cancel:appt-1", "negative"),
+    ]
+    assert rows[2][0]["type"] == "link" and rows[2][0]["text"] == "Как добраться"
     assert PATIENT["last_name"] not in body["text"]
     await client.post("/max/webhook", json=press("confirm:appt-1"), headers=HDR)
     await send_reminder("appt-1", "2h")
     body = json.loads(mocks["msg"].calls.last.request.content)
-    buttons = [b["payload"] for row in body["attachments"][0]["payload"]["buttons"] for b in row]
-    assert buttons == ["cancel:appt-1"]
+    rows = body["attachments"][0]["payload"]["buttons"]
+    assert [b["payload"] for row in rows for b in row if "payload" in b] == ["cancel:appt-1"]
 
 
 async def test_admin_send_reminder(client, mocks):

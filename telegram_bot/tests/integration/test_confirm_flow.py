@@ -1,4 +1,4 @@
-"""Этап 2: кнопки «Подтверждаю / Отменить» в напоминаниях (specs/003-visit-confirmation)."""
+"""Кнопки «Приду / Отменить запись» в напоминаниях (specs/003-visit-confirmation, 005)."""
 
 import json
 
@@ -50,7 +50,7 @@ async def test_confirm(client, app, mocks):
     }
     assert tg_calls(mocks, "answerCallbackQuery")[-1]["text"] == "Визит подтверждён"
     assert tg_calls(mocks, "editMessageReplyMarkup")[-1]["message_id"] == 55
-    assert "подтверждён" in tg_calls(mocks, "sendMessage")[-1]["text"]
+    assert tg_calls(mocks, "sendMessage")[-1]["text"].startswith("Спасибо, ждём вас")
     assert appt(app, "appt-1").confirmed_at is not None
 
 
@@ -64,7 +64,7 @@ async def test_confirm_repeat_is_idempotent(client, mocks):
         json={"status": "success", "appointment_id": "appt-1", "already": True}
     )
     await client.post("/admin/webhook", json=press("c:appt-1"), headers=HDR)
-    assert "уже подтверждён" in tg_calls(mocks, "sendMessage")[-1]["text"]
+    assert "уже подтвердили" in tg_calls(mocks, "sendMessage")[-1]["text"]
 
 
 async def test_confirm_onec_down_keeps_buttons(client, app, mocks):
@@ -72,7 +72,7 @@ async def test_confirm_onec_down_keeps_buttons(client, app, mocks):
     mocks["confirm"].respond(503)
     await client.post("/admin/webhook", json=press("c:appt-1"), headers=HDR)
     assert not tg_calls(mocks, "editMessageReplyMarkup")
-    assert "Попробуйте" in tg_calls(mocks, "sendMessage")[-1]["text"]
+    assert "Нажмите кнопку ещё раз" in tg_calls(mocks, "sendMessage")[-1]["text"]
     assert appt(app, "appt-1").confirmed_at is None
 
 
@@ -95,7 +95,7 @@ async def test_cancel_button(client, app, mocks):
     # Кнопка старого напоминания после отмены — ничего не меняет.
     await client.post("/admin/webhook", json=press("c:appt-1"), headers=HDR)
     assert not mocks["confirm"].called
-    assert "неактуальна" in tg_calls(mocks, "sendMessage")[-1]["text"]
+    assert "уже изменилась" in tg_calls(mocks, "sendMessage")[-1]["text"]
 
 
 async def test_button_after_reschedule(client, app, mocks):
@@ -120,14 +120,26 @@ async def test_reminder_keyboard(client, app, mocks):
     await client.post("/book", json=booking(), headers=auth(7))
     await send_reminder("appt-1", "24h")
     sent = tg_calls(mocks, "sendMessage")[-1]
-    buttons = [b["callback_data"] for row in sent["reply_markup"]["inline_keyboard"] for b in row]
-    assert buttons == ["c:appt-1", "x:appt-1"]
+    rows = sent["reply_markup"]["inline_keyboard"]
+    buttons = [(b["text"], b.get("callback_data"), b.get("style")) for row in rows for b in row]
+    assert buttons[:2] == [
+        ("Приду", "c:appt-1", "success"),
+        ("Отменить запись", "x:appt-1", "danger"),
+    ]
+    assert buttons[2][0] == "Как добраться" and rows[2][0]["url"].startswith(
+        "https://yandex.ru/maps/"
+    )
     assert "Call-Центра" not in sent["text"] and PATIENT["last_name"] not in sent["text"]
     await client.post("/admin/webhook", json=press("c:appt-1"), headers=HDR)
     await send_reminder("appt-1", "2h")
     sent = tg_calls(mocks, "sendMessage")[-1]
-    buttons = [b["callback_data"] for row in sent["reply_markup"]["inline_keyboard"] for b in row]
-    assert buttons == ["x:appt-1"] and "через 2 часа" in sent["text"]
+    callbacks = [
+        b["callback_data"]
+        for row in sent["reply_markup"]["inline_keyboard"]
+        for b in row
+        if "callback_data" in b
+    ]
+    assert callbacks == ["x:appt-1"] and "ждём вас" in sent["text"]
 
 
 async def test_reminder_not_sent_for_cancelled(client, mocks):

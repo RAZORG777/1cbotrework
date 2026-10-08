@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from loguru import logger
 from sqlalchemy import select
 
+from . import texts
 from .db import now_msk, session_scope
 from .models import STATUS_CANCELLED, Appointment
 from .onec_client import OneCError
@@ -18,14 +19,6 @@ from .reminders import remove_reminders
 from .routes.webapp import active_for, cancel_for_user
 
 PLATFORM = "telegram"
-NOT_ACTUAL = "Эта запись изменена или уже неактуальна. Актуальное напоминание придёт отдельно."
-
-
-def cancelled_text(fio: str) -> str:
-    return f"<b>{fio}</b>,\n🚫 Ваша запись отменена. Будем рады видеть вас снова! 🏥"
-
-
-RETRY_LATER = "⚠️ Не удалось связаться с клиникой. Попробуйте нажать кнопку ещё раз чуть позже."
 
 
 @dataclass
@@ -36,13 +29,13 @@ class Outcome:
     result: str  # для журнала
 
 
-def _find(state, user_id: str, appointment_id: str | None):
+def _find(state, user_id: str, appointment_id: str | None) -> Appointment | None:
     """Активная запись пользователя, если кнопка относится к ней; иначе None."""
     with session_scope(state.session_factory) as session:
         appt = active_for(session, user_id)
         if appt is None or (appointment_id and appt.appointment_id != appointment_id):
             return None
-        return appt.appointment_id, appt.fio_short
+        return appt  # сессия без expire_on_commit: поля доступны после закрытия
 
 
 def _close_cancelled(state, appointment_id: str) -> None:
@@ -56,52 +49,42 @@ def _close_cancelled(state, appointment_id: str) -> None:
     remove_reminders(state.scheduler, appointment_id)
 
 
+def _not_actual() -> Outcome:
+    return Outcome(texts.NOT_ACTUAL, texts.NOTICE_NOT_ACTUAL, True, "not_actual")
+
+
 async def confirm_visit(state, user_id: str, appointment_id: str | None) -> Outcome:
-    found = _find(state, user_id, appointment_id)
-    if found is None:
-        return Outcome(NOT_ACTUAL, "Запись неактуальна", True, "not_actual")
-    appt_id, _ = found
+    appt = _find(state, user_id, appointment_id)
+    if appt is None:
+        return _not_actual()
     try:
-        response = await state.onec.confirm(appt_id, PLATFORM)
+        response = await state.onec.confirm(appt.appointment_id, PLATFORM)
     except OneCError:
-        return Outcome(RETRY_LATER, "Не удалось, попробуйте позже", False, "onec_unavailable")
+        return Outcome(texts.RETRY_LATER, texts.NOTICE_RETRY, False, "onec_unavailable")
 
     if response.get("status") == "success":
         with session_scope(state.session_factory) as session:
-            appt = active_for(session, user_id)
-            if appt is not None and appt.confirmed_at is None:
-                appt.confirmed_at = now_msk()
+            current = active_for(session, user_id)
+            if current is not None and current.confirmed_at is None:
+                current.confirmed_at = now_msk()
         if response.get("already"):
-            return Outcome(
-                "Ваш визит уже подтверждён. Ждём вас! 🏥", "Уже подтверждено", True, "already"
-            )
-        return Outcome(
-            "✅ <b>Спасибо! Ваш визит подтверждён.</b> Ждём вас в клинике «ЯСНО ВИЖУ»!",
-            "Визит подтверждён",
-            True,
-            "confirmed",
-        )
+            return Outcome(texts.already_confirmed(appt), texts.NOTICE_ALREADY, True, "already")
+        return Outcome(texts.confirmed(appt), texts.NOTICE_CONFIRMED, True, "confirmed")
     code = str(response.get("code") or "")
     if code in ("CANCELLED", "NOT_FOUND"):
-        _close_cancelled(state, appt_id)
-        return Outcome("🚫 Эта запись уже отменена.", "Запись отменена", True, code.lower())
-    return Outcome(RETRY_LATER, "Не удалось, попробуйте позже", False, f"onec_{code or 'error'}")
+        _close_cancelled(state, appt.appointment_id)
+        return Outcome(texts.ALREADY_CANCELLED, texts.NOTICE_CANCELLED, True, code.lower())
+    return Outcome(texts.RETRY_LATER, texts.NOTICE_RETRY, False, f"onec_{code or 'error'}")
 
 
 async def cancel_visit(state, user_id: str, appointment_id: str | None) -> Outcome:
-    found = _find(state, user_id, appointment_id)
-    if found is None:
-        return Outcome(NOT_ACTUAL, "Запись неактуальна", True, "not_actual")
-    _, fio = found
+    appt = _find(state, user_id, appointment_id)
+    if appt is None:
+        return _not_actual()
     result = await cancel_for_user(state, user_id)
     if isinstance(result, dict):
-        return Outcome(cancelled_text(fio), "Запись отменена", True, "cancelled")
-    return Outcome(
-        "⚠️ Не удалось отменить запись. Попробуйте ещё раз или позвоните в клинику.",
-        "Не удалось отменить",
-        False,
-        "cancel_failed",
-    )
+        return Outcome(texts.cancelled_by_patient(appt), texts.NOTICE_CANCELLED, True, "cancelled")
+    return Outcome(texts.CANCEL_FAILED, texts.NOTICE_CANCEL_FAILED, False, "cancel_failed")
 
 
 def parse_callback(data: str) -> tuple[str, str] | None:

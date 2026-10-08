@@ -11,6 +11,7 @@ from loguru import logger
 from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
+from . import keyboards, texts
 from .db import MSK, now_msk, session_scope
 from .models import (
     STATUS_ACTIVE,
@@ -54,30 +55,14 @@ def make_scheduler(db_url: str) -> AsyncIOScheduler:
     return AsyncIOScheduler(jobstores={"default": SQLAlchemyJobStore(url=db_url)}, timezone=MSK)
 
 
-def _fmt_date(appt: Appointment) -> str:
-    return appt.visit_at.strftime("%d.%m.%Y")
-
-
-def reminder_keyboard(appointment_id: str, confirmed: bool) -> dict:
-    """Кнопки напоминания; данные кнопки — только UUID заявки (без ПДн, R3)."""
-    rows = []
-    if not confirmed:
-        rows.append([{"text": "✅ Подтверждаю", "callback_data": f"c:{appointment_id}"}])
-    rows.append([{"text": "❌ Отменить", "callback_data": f"x:{appointment_id}"}])
-    return {"inline_keyboard": rows}
+def reminder_keyboard(appointment_id: str, confirmed: bool, branch: str | None = None):
+    """Кнопки напоминания (specs/005-bot-messages): «Приду», «Отменить запись», «Как добраться»."""
+    return keyboards.reminder(appointment_id, confirmed, branch)
 
 
 def reminder_text(appt: Appointment, kind: str) -> str:
-    fio = appt.fio_short
-    head = (
-        f"{fio}\n<b>{_fmt_date(appt)}</b> в <b>{appt.time_str}</b> вы записаны в клинику "
-        f"«ЯСНО ВИЖУ».\n🏥 Филиал: {appt.branch}\n👨‍⚕️ Врач: {appt.doctor_name}\n\n"
-    )
-    if kind == "2h":
-        head = "🔔 Напоминаем: ваш визит через 2 часа!\n" + head
-    if appt.confirmed_at is None:
-        return head + "Пожалуйста, подтвердите визит или отмените запись, если не сможете прийти 👇"
-    return head + "Если планы изменились, запись можно отменить 👇"
+    """Текст напоминания (contracts/messages.md, п. 5–6)."""
+    return texts.reminder(appt, kind, now_msk().date())
 
 
 async def send_reminder(appointment_id: str, kind: str) -> None:
@@ -98,12 +83,14 @@ async def send_reminder(appointment_id: str, kind: str) -> None:
             return
         chat_id = appt.user_id
         text = reminder_text(appt, kind)
-        keyboard = reminder_keyboard(appt.appointment_id, appt.confirmed_at is not None)
+        keyboard = reminder_keyboard(
+            appt.appointment_id, appt.confirmed_at is not None, appt.branch
+        )
     await messenger.send_message(chat_id, text, keyboard)
 
 
 def schedule_reminders(scheduler: AsyncIOScheduler, appt: Appointment, now: datetime) -> int:
-    """Напоминания за 24 ч и 2 ч с кнопками «Подтверждаю / Отменить» (этап 2)."""
+    """Напоминания за 24 ч и 2 ч с кнопками «Приду / Отменить запись» (этапы 2 и 5)."""
     if not appt.notify:
         return 0
     count = 0
@@ -134,13 +121,18 @@ def remove_reminders(scheduler: AsyncIOScheduler, appointment_id: str) -> None:
 
 
 def schedule_feedback(
-    scheduler: AsyncIOScheduler, appointment_id: str, chat_id: str, text: str, now: datetime
+    scheduler: AsyncIOScheduler,
+    appointment_id: str,
+    chat_id: str,
+    text: str,
+    now: datetime,
+    keyboard=None,
 ) -> None:
     scheduler.add_job(
         deliver,
         "date",
         run_date=now + FEEDBACK_DELAY,
-        args=[chat_id, text],
+        args=[chat_id, text, keyboard],
         id=f"feedback_{appointment_id}",
         replace_existing=True,
     )

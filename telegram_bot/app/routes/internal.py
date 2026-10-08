@@ -7,6 +7,7 @@ from loguru import logger
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
+from .. import keyboards, texts
 from ..auth import require_onec_secret
 from ..db import mark_processed, now_msk, session_scope
 from ..doctors_enricher import find_prodoctorov_url
@@ -30,22 +31,17 @@ def _already(session, key: str) -> bool:
     return session.scalar(select(ProcessedEvent).where(ProcessedEvent.key == key)) is not None
 
 
-def feedback_text(appt: Appointment) -> str:
-    fio = appt.fio_short
-    doctor = (appt.doctor_name or "").strip()
-    link = find_prodoctorov_url(doctor)
+def review_link(appt: Appointment) -> str:
+    """Отзыв о враче на ПроДокторов, если он там есть; иначе о филиале на Яндекс Картах."""
+    link = find_prodoctorov_url((appt.doctor_name or "").strip())
     if link:
-        return (
-            f"🌟 <b>{fio}</b>, надеемся, вам понравилось на приеме у специалиста <b>{doctor}</b>!\n\n"
-            "Будем очень благодарны, если вы уделите минуту и оставите отзыв о работе врача:\n"
-            f"👉 <a href='{link}'>Оставить отзыв на ПроДокторов</a>"
-        )
+        return link
     key = "Новые Ватутинки" if "Ватутинки" in (appt.branch or "") else "Профсоюзная"
-    return (
-        f"🌟 <b>{fio}</b>, надеемся, вам понравилось в нашей клинике!\n\n"
-        "Будем очень благодарны за ваш отзыв:\n"
-        f"👉 <a href='{REVIEWS_LINKS[key]}'>Оставить отзыв на Яндекс.Картах</a>"
-    )
+    return REVIEWS_LINKS[key]
+
+
+def feedback_text(appt: Appointment) -> str:
+    return texts.feedback(appt)
 
 
 @router.post("/cancel-visit")
@@ -73,11 +69,12 @@ async def cancel_visit(signal: Signal, request: Request, background: BackgroundT
             "Сигнал 1С cancel-visit на отмену пациента: appointment_id={}", signal.appointment_id
         )
         return {"status": "success"}
-    text = (
-        "😔 <b>Ваша запись была отменена нашими администраторами.</b>\n\n"
-        "Вы всегда можете записаться заново через меню! 🏥"
+    background.add_task(
+        state.messenger.send_message,
+        chat_id,
+        texts.cancelled_by_admin(appt),
+        keyboards.book_again(state.settings.WEBAPP_URL),
     )
-    background.add_task(state.messenger.send_message, chat_id, text)
     logger.info("Сигнал 1С cancel-visit: appointment_id={}", signal.appointment_id)
     return {"status": "success"}
 
@@ -101,8 +98,9 @@ async def finish_visit(signal: Signal, request: Request) -> dict:
         appt.status = STATUS_FINISHED
         appt.closed_at = now
         text = feedback_text(appt)
+        review = keyboards.review(review_link(appt))
         chat_id = appt.user_id
     remove_reminders(state.scheduler, signal.appointment_id)
-    schedule_feedback(state.scheduler, signal.appointment_id, chat_id, text, now)
+    schedule_feedback(state.scheduler, signal.appointment_id, chat_id, text, now, review)
     logger.info("Сигнал 1С finish-visit: appointment_id={}", signal.appointment_id)
     return {"status": "success"}

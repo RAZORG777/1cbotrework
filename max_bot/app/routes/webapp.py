@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from .. import keyboards, texts
 from ..auth import WebAppUser, current_user
 from ..config import BASE_DIR
 from ..db import now_msk, session_scope
@@ -24,8 +25,6 @@ from ..reminders import remove_reminders, schedule_reminders
 router = APIRouter()
 # Сборка формы (webapp/, этап 3): npm run build кладёт её в static/app.
 APP_DIR = BASE_DIR / "static" / "app"
-BRANCH_LINK = "https://yasno-vizhu.com/contacts/"
-MAP_LINK = "https://yandex.ru/maps/"
 
 
 class Patient(BaseModel):
@@ -107,10 +106,6 @@ def log_patient_result(response: dict, appointment_id: str) -> None:
     logger.info("1С: appointment_id={} пациент={} медкарта={}", appointment_id, patient, card)
     if card == "missing":
         logger.warning("1С не создала медкарту: appointment_id={}", appointment_id)
-
-
-def branch_name(branch: str) -> str:
-    return "Профсоюзная" if branch == "Профсоюзная" else "Новые Ватутинки"
 
 
 PAST_GRACE = timedelta(hours=1)
@@ -321,14 +316,12 @@ async def book(
     logger.info("Записан: user_id={} appointment_id={}", user.id, appointment_id)
     log_patient_result(response, appointment_id)
 
-    date_s = datetime.strptime(req.date, "%Y-%m-%d").strftime("%d.%m.%Y")
-    fio = f"{req.patient.first_name} {req.patient.middle_name}".strip()
-    text = (
-        f"<b>{fio}</b>,\n✅ Вы успешно записаны!\n\n"
-        f"🏥 Филиал: <b>{req.branch}</b>\n📅 Дата: <b>{date_s}</b>\n"
-        f"⏰ Время: <b>{req.time}</b>\n👨‍⚕️ Врач: {req.doctor_name}"
+    background.add_task(
+        state.messenger.send_message,
+        user.id,
+        texts.booked(appt),
+        keyboards.visit(appt.branch, state.settings.MAX_MINIAPP),
     )
-    background.add_task(state.messenger.send_message, user.id, text)
     return {"status": "success", "appointment_id": appointment_id}
 
 
@@ -373,14 +366,12 @@ async def reschedule(
     remove_reminders(state.scheduler, old_id)
     schedule_reminders(state.scheduler, appt, now)
 
-    date_s = datetime.strptime(req.date, "%Y-%m-%d").strftime("%d.%m.%Y")
-    fio = f"{patient['first_name']} {patient['middle_name']}".strip()
-    text = (
-        f"🔄 <b>{fio}</b>,\nВаша запись успешно перенесена!\n\n"
-        f"🏥 Филиал: <b>{req.branch}</b>\n📅 Новая дата: <b>{date_s}</b>\n"
-        f"⏰ Время: <b>{req.time}</b>\n👨‍⚕️ Врач: {req.doctor_name}\n\nЖдем вас!"
+    background.add_task(
+        state.messenger.send_message,
+        user.id,
+        texts.moved(appt),
+        keyboards.visit(appt.branch, state.settings.MAX_MINIAPP),
     )
-    background.add_task(state.messenger.send_message, user.id, text)
     return {"status": "success", "appointment_id": new_id}
 
 
@@ -405,7 +396,7 @@ async def cancel_for_user(state, user_id: str) -> JSONResponse | dict:
         if appt is None:
             return error("NOT_FOUND", "Запись не найдена.", 404)
         appointment_id = appt.appointment_id
-        fio = appt.fio_short
+        visit = appt  # для текста об отмене (поля доступны после сессии)
     marks = user_cancelling(state)
     marks.add(appointment_id)
     try:
@@ -424,11 +415,7 @@ async def cancel_for_user(state, user_id: str) -> JSONResponse | dict:
         marks.discard(appointment_id)
     remove_reminders(state.scheduler, appointment_id)
     logger.info("Отменена пациентом: user_id={} appointment_id={}", user_id, appointment_id)
-    return {"status": "success", "appointment_id": appointment_id, "fio": fio}
-
-
-def cancelled_text(fio: str) -> str:
-    return f"<b>{fio}</b>,\n🚫 Ваша запись была успешно отменена."
+    return {"status": "success", "appointment_id": appointment_id, "visit": visit}
 
 
 @router.post("/cancel")
@@ -437,8 +424,12 @@ async def cancel(
 ):
     result = await cancel_for_user(request.app.state, user.id)
     if isinstance(result, dict):
+        state = request.app.state
         background.add_task(
-            request.app.state.messenger.send_message, user.id, cancelled_text(result["fio"])
+            state.messenger.send_message,
+            user.id,
+            texts.cancelled_by_patient(result["visit"]),
+            keyboards.book_again(state.settings.MAX_MINIAPP),
         )
         return {"status": "success"}
     return result

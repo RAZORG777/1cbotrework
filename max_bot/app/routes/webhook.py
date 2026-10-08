@@ -11,17 +11,12 @@ from __future__ import annotations
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from loguru import logger
 
+from .. import keyboards, texts
 from ..auth import require_max_webhook_secret
 from ..db import mark_processed, session_scope
 from ..visit_actions import handle_button, parse_callback
 
 router = APIRouter()
-
-WELCOME = (
-    "<b>Добро пожаловать в клинику «ЯСНО ВИЖУ»!</b> 👋\n\n"
-    "Нажмите кнопку ниже, чтобы выбрать врача и время для записи. "
-    "Кнопка всегда будет здесь, просто напишите мне любое слово, если потеряете её!"
-)
 
 
 def event_key(update: dict) -> str | None:
@@ -38,11 +33,18 @@ def event_key(update: dict) -> str | None:
     return None
 
 
-async def send_welcome(state, user_id: str) -> None:
-    keyboard = [
-        [{"type": "open_app", "text": "Записаться ✅", "web_app": state.settings.MAX_MINIAPP}]
-    ]
-    await state.messenger.send_message(user_id, WELCOME, keyboard)
+def first_name_of(user: dict) -> str:
+    """Имя из профиля MAX: first_name или первое слово name."""
+    name = (user.get("first_name") or user.get("name") or "").strip()
+    return name.split()[0] if name else ""
+
+
+async def send_welcome(state, user_id: str, first_name: str = "") -> None:
+    await state.messenger.send_message(
+        user_id,
+        texts.welcome(first_name),
+        keyboards.welcome(state.settings.MAX_MINIAPP, texts.SITE_URL),
+    )
 
 
 async def handle_callback(state, update: dict) -> None:
@@ -77,13 +79,13 @@ async def process(state, update: dict) -> None:
         elif kind == "bot_started":
             user_id = str(update.get("user_id") or (update.get("user") or {}).get("user_id") or "")
             if user_id:
-                await send_welcome(state, user_id)
+                await send_welcome(state, user_id, first_name_of(update.get("user") or {}))
                 logger.info("bot_started: user_id={}", user_id)
         elif kind == "message_created":
             sender = (update.get("message") or {}).get("sender") or {}
             user_id = str(sender.get("user_id") or "")
             if user_id and not sender.get("is_bot"):
-                await send_welcome(state, user_id)
+                await send_welcome(state, user_id, first_name_of(sender))
     except Exception as exc:  # фоновая задача не должна ронять процесс
         logger.error("Ошибка обработки события MAX: {}", type(exc).__name__)
 

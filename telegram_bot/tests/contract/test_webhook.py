@@ -27,11 +27,17 @@ async def test_requires_secret(client, mocks):
 async def test_start_and_duplicate(client, mocks):
     r = await client.post("/admin/webhook", json=start(), headers=HDR)
     assert r.json() == {"status": "ok"}
-    assert mocks["tg"].call_count == 2
+    assert mocks["tg"].call_count == 1  # одно приветствие, без служебного «Обновление меню»
     body = json.loads(mocks["tg"].calls.last.request.content)
-    assert body["reply_markup"]["inline_keyboard"][0][0]["web_app"]["url"] == "https://app.test"
+    book = body["reply_markup"]["inline_keyboard"][0][0]
+    assert book == {
+        "text": "Записаться",
+        "web_app": {"url": "https://app.test"},
+        "style": "primary",
+    }
+    assert body["text"].startswith("Здравствуйте")
     await client.post("/admin/webhook", json=start(), headers=HDR)
-    assert mocks["tg"].call_count == 2
+    assert mocks["tg"].call_count == 1
 
 
 async def test_stats_only_for_admin(client, mocks):

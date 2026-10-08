@@ -46,7 +46,7 @@ async def test_welcome_open_app_and_duplicate(client, mocks):
     assert r.json() == {"status": "ok"}
     body = json.loads(mocks["msg"].calls.last.request.content)
     button = body["attachments"][0]["payload"]["buttons"][0][0]
-    assert button == {"type": "open_app", "text": "Записаться ✅", "web_app": "yasno_bot"}
+    assert button == {"type": "open_app", "text": "Записаться", "web_app": "yasno_bot"}
     assert "user_id=" not in json.dumps(body)
     assert mocks["msg"].calls.last.request.headers["authorization"] == "123456:TEST-TOKEN"
     await client.post("/max/webhook", json=started(), headers=HDR)
