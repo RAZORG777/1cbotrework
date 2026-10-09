@@ -7,6 +7,19 @@
 from __future__ import annotations
 
 from . import texts
+from .config import BASE_DIR
+
+BUILD_INDEX = BASE_DIR / "static" / "app" / "index.html"
+
+
+def app_url(webapp_url: str) -> str:
+    """Адрес формы с версией сборки: Telegram кэширует страницу мини-приложения, и без
+    параметра пациенты после обновления видели бы старую форму."""
+    try:
+        version = int(BUILD_INDEX.stat().st_mtime)
+    except OSError:
+        return webapp_url
+    return f"{webapp_url.rstrip('/')}/?v={version}"
 
 
 def inline(*rows: list[dict]) -> dict:
@@ -18,11 +31,11 @@ def route(branch: str | None) -> dict:
 
 
 def my_booking(webapp_url: str) -> dict:
-    return {"text": texts.BTN_MY, "web_app": {"url": webapp_url}}
+    return {"text": texts.BTN_MY, "web_app": {"url": app_url(webapp_url)}}
 
 
 def book(webapp_url: str) -> dict:
-    return {"text": texts.BTN_BOOK, "web_app": {"url": webapp_url}, "style": "primary"}
+    return {"text": texts.BTN_BOOK, "web_app": {"url": app_url(webapp_url)}, "style": "primary"}
 
 
 def visit(branch: str | None, webapp_url: str) -> dict:

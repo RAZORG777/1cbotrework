@@ -59,6 +59,19 @@ def intercept_uvicorn() -> None:
         std.propagate = False
 
 
+async def resolve_miniapp(messenger, settings) -> None:
+    """Кнопка open_app ждёт ник бота. Если в .env пусто или указана ссылка — берём ник из /me."""
+    value = settings.MAX_MINIAPP.strip()
+    if value and not value.startswith(("http://", "https://")):
+        return
+    username = await messenger.bot_username()
+    if username:
+        settings.MAX_MINIAPP = username
+        logger.info("MAX: мини-приложение бота {}", username)
+    else:
+        logger.error("MAX: не удалось узнать ник бота — кнопка «Записаться» не откроется")
+
+
 def create_app(
     settings: Settings,
     onec_transport: httpx.AsyncBaseTransport | None = None,
@@ -72,6 +85,7 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         init_db(engine, settings.db_file)
+        await resolve_miniapp(app.state.messenger, settings)
         metrics.mark_started()
         scheduler = make_scheduler(f"sqlite:///{settings.db_file}")
         app.state.scheduler = scheduler

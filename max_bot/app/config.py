@@ -27,7 +27,8 @@ class Settings(BaseSettings):
     MAX_BOT_TOKEN: str = Field(min_length=1)
     MAX_API_URL: str = "https://platform-api2.max.ru"
     MAX_WEBHOOK_SECRET: str = Field(min_length=5, max_length=256, pattern=r"^[A-Za-z0-9_-]+$")
-    MAX_MINIAPP: str = Field(min_length=1)
+    # Ник бота, чьё мини-приложение открывает кнопка open_app. Пусто — берётся из GET /me.
+    MAX_MINIAPP: str = ""
     ADMIN_IDS: str = ""
 
     # WebApp

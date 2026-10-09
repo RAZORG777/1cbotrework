@@ -36,7 +36,12 @@ class MaxMessenger:
                     )
                 if response.status_code == 200:
                     return True
-                logger.error("MAX {}: HTTP {}", path, response.status_code)
+                try:
+                    body = response.json()
+                    reason = f"{body.get('code', '')} {body.get('message', '')}".strip()
+                except ValueError:
+                    reason = response.text[:200]
+                logger.error("MAX {}: HTTP {} {}", path, response.status_code, reason[:200])
                 return False
             except httpx.TransportError as exc:
                 logger.warning(
@@ -46,6 +51,20 @@ class MaxMessenger:
                     await asyncio.sleep(self._retry_pause)
         logger.error("MAX {}: не доставлено после 3 попыток", path)
         return False
+
+    async def bot_username(self) -> str | None:
+        """Ник бота из GET /me — для кнопки open_app (мини-приложение этого бота)."""
+        try:
+            async with httpx.AsyncClient(timeout=10.0, transport=self._transport) as client:
+                response = await client.get(
+                    f"{self.api_url}/me", headers={"Authorization": self._token}
+                )
+            if response.status_code == 200:
+                return response.json().get("username") or None
+            logger.error("MAX /me: HTTP {}", response.status_code)
+        except (httpx.TransportError, ValueError) as exc:
+            logger.warning("MAX /me: {}", type(exc).__name__)
+        return None
 
     async def send_message(self, user_id: str, text: str, keyboard: list | None = None) -> bool:
         payload: dict[str, Any] = {"text": text, "format": "html"}

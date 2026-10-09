@@ -21,7 +21,7 @@ BASE = dict(
 
 @pytest.mark.parametrize(
     "missing",
-    ["ADMIN_PASSWORD", "ONEC_WEBHOOK_SECRET", "MAX_WEBHOOK_SECRET", "MAX_BOT_TOKEN", "MAX_MINIAPP"],
+    ["ADMIN_PASSWORD", "ONEC_WEBHOOK_SECRET", "MAX_WEBHOOK_SECRET", "MAX_BOT_TOKEN"],
 )
 def test_missing_required_exits(monkeypatch, capsys, missing):
     for k in list(BASE) + ["PD_RETENTION_DAYS"]:
@@ -57,3 +57,27 @@ async def test_admin_auth(client):
     r = await client.get("/max/admin", auth=("admin", "admin-pass"))
     assert r.status_code == 200 and "Панель управления" in r.text
     assert (await client.get("/max/admin/logs", auth=("admin", "admin-pass"))).status_code == 200
+
+
+async def test_miniapp_resolved_from_me(settings, mocks):
+    """MAX_MINIAPP пуст или указана ссылка — кнопка open_app получает ник бота из GET /me."""
+    from app.main import create_app
+    from tests.helpers import MAX
+
+    mocks.get(f"{MAX}/me").respond(json={"user_id": 1, "username": "yasno_vizhu_bot"})
+    for value in ("", "https://1cmed.one-two.online/max"):
+        s = settings.model_copy(update={"MAX_MINIAPP": value})
+        app = create_app(s, retry_pause=0)
+        async with app.router.lifespan_context(app):
+            assert s.MAX_MINIAPP == "yasno_vizhu_bot"
+
+
+async def test_max_error_body_logged(app, mocks):
+    from app.logging import log_records
+    from tests.helpers import MAX
+
+    mocks.post(f"{MAX}/messages").respond(
+        400, json={"code": "proto.payload", "message": "bad button"}
+    )
+    assert await app.state.messenger.send_message("5", "текст") is False
+    assert any("proto.payload bad button" in r["message"] for r in log_records)
