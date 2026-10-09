@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     # Адрес, на который Telegram шлёт апдейты. Пусто — WEBAPP_URL/admin/webhook. Если Telegram
     # не достучаться до сервера напрямую — адрес воркера-посредника (deploy/cloudflare/).
     TG_WEBHOOK_URL: str = ""
+    # При старте выставлять кнопку меню «Записаться» со свежей ссылкой на форму.
+    TG_SET_MENU_BUTTON: bool = True
     TG_WEBHOOK_SECRET: str = Field(min_length=1, max_length=256, pattern=r"^[A-Za-z0-9_-]+$")
     ADMIN_IDS: str = ""
 

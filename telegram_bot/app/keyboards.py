@@ -30,6 +30,11 @@ def route(branch: str | None) -> dict:
     return {"text": texts.BTN_ROUTE, "url": texts.branch_of(branch).route_url}
 
 
+def menu_button(webapp_url: str) -> dict:
+    """Кнопка меню слева от поля ввода (setChatMenuButton): открывает форму записи."""
+    return {"type": "web_app", "text": texts.BTN_BOOK, "web_app": {"url": app_url(webapp_url)}}
+
+
 def my_booking(webapp_url: str) -> dict:
     return {"text": texts.BTN_MY, "web_app": {"url": app_url(webapp_url)}}
 

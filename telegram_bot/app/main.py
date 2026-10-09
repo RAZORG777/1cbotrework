@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging as std_logging
 import traceback
 from contextlib import asynccontextmanager
@@ -15,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from loguru import logger
 from sqlalchemy import select
 
-from . import broadcasts, metrics
+from . import broadcasts, keyboards, metrics
 from .config import Settings, load_settings
 from .db import init_db, make_engine, make_session_factory, now_msk, session_scope
 from .logging import mask_pii, setup_logging
@@ -59,6 +60,13 @@ def intercept_uvicorn() -> None:
         std.propagate = False
 
 
+async def set_menu_button(messenger, settings) -> None:
+    """Кнопка меню «Записаться» со ссылкой на текущую сборку формы (вместо старой из BotFather)."""
+    button = keyboards.menu_button(settings.WEBAPP_URL)
+    if await messenger.call("setChatMenuButton", {"menu_button": button}) is not None:
+        logger.info("Кнопка меню: {}", button["web_app"]["url"])
+
+
 def create_app(
     settings: Settings,
     onec_transport: httpx.AsyncBaseTransport | None = None,
@@ -89,6 +97,11 @@ def create_app(
         restored = sum(schedule_reminders(scheduler, a, now_msk()) for a in active)
         logger.info("Бот запущен, восстановлено напоминаний: {}", restored)
         broadcasts.resume(app.state)
+        if settings.TG_SET_MENU_BUTTON:
+            # В фоне: если Telegram недоступен, запуск бота не ждёт повторов.
+            app.state.menu_task = asyncio.create_task(
+                set_menu_button(app.state.messenger, settings)
+            )
         try:
             yield
         finally:

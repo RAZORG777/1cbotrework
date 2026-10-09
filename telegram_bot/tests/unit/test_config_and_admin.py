@@ -62,3 +62,19 @@ def test_webhook_url_override(settings):
     assert settings.webhook_url == "https://app.test/admin/webhook"
     relay = settings.model_copy(update={"TG_WEBHOOK_URL": "https://relay.workers.dev/telegram"})
     assert relay.webhook_url == "https://relay.workers.dev/telegram"
+
+
+async def test_menu_button_set_on_start(settings, mocks):
+    """При старте бот выставляет кнопку меню «Записаться» со ссылкой на форму."""
+    import json
+
+    from app.main import create_app
+
+    s = settings.model_copy(update={"TG_SET_MENU_BUTTON": True})
+    app = create_app(s, retry_pause=0)
+    async with app.router.lifespan_context(app):
+        await app.state.menu_task
+    calls = [c for c in mocks["tg"].calls if c.request.url.path.endswith("/setChatMenuButton")]
+    body = json.loads(calls[0].request.content)["menu_button"]
+    assert body["type"] == "web_app" and body["text"] == "Записаться"
+    assert body["web_app"]["url"].startswith("https://app.test")

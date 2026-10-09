@@ -24,6 +24,7 @@ def settings(tmp_path) -> Settings:
         ONEC_PASSWORD="pwd",
         ONEC_WEBHOOK_SECRET=ONEC_SECRET,
         ADMIN_PASSWORD="admin-pass",
+        TG_SET_MENU_BUTTON=False,
         DB_PATH=str(tmp_path / "bot.db"),
         LOG_DIR=str(tmp_path / "logs"),
     )
