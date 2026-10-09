@@ -2,7 +2,7 @@
 
 import json
 
-from app import texts
+from app import keyboards, texts
 from tests.helpers import TG_SECRET
 
 HDR = {"X-Telegram-Bot-Api-Secret-Token": TG_SECRET}
@@ -36,7 +36,7 @@ async def test_start_and_duplicate(client, mocks):
     book = body["reply_markup"]["inline_keyboard"][0][0]
     assert book == {
         "text": "Записаться",
-        "web_app": {"url": "https://app.test"},
+        "web_app": {"url": keyboards.app_url("https://app.test")},
         "style": "primary",
     }
     assert body["text"].startswith("Здравствуйте")

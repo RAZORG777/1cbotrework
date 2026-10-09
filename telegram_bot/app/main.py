@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from loguru import logger
 from sqlalchemy import select
 
-from . import broadcasts, keyboards, metrics
+from . import broadcasts, keyboards, metrics, texts
 from .config import Settings, load_settings
 from .db import cleanup_backups, init_db, make_engine, make_session_factory, now_msk, session_scope
 from .logging import mask_pii, setup_logging
@@ -79,6 +79,23 @@ async def set_menu_button(messenger, settings) -> None:
         logger.info("Кнопка меню: {}", button["web_app"]["url"])
 
 
+async def set_bot_profile(messenger, settings) -> None:
+    """Профиль бота: кнопка меню, команды, описания. Описания меняются, только если отличаются."""
+    await set_menu_button(messenger, settings)
+    commands = [{"command": c, "description": d} for c, d in texts.BOT_COMMANDS]
+    await messenger.call("setMyCommands", {"commands": commands})
+    for kind, text in (
+        ("short_description", texts.BOT_SHORT_DESCRIPTION),
+        ("description", texts.BOT_DESCRIPTION),
+    ):
+        name = "ShortDescription" if kind == "short_description" else "Description"
+        current = await messenger.call(f"getMy{name}", {})
+        if current is not None and (current.get("result") or {}).get(kind) == text:
+            continue
+        if await messenger.call(f"setMy{name}", {kind: text}) is not None:
+            logger.info("Профиль бота: обновлено {}", kind)
+
+
 def create_app(
     settings: Settings,
     onec_transport: httpx.AsyncBaseTransport | None = None,
@@ -113,7 +130,7 @@ def create_app(
         if settings.TG_SET_MENU_BUTTON:
             # В фоне: если Telegram недоступен, запуск бота не ждёт повторов.
             app.state.menu_task = asyncio.create_task(
-                set_menu_button(app.state.messenger, settings)
+                set_bot_profile(app.state.messenger, settings)
             )
         try:
             yield

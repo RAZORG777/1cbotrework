@@ -80,6 +80,39 @@ async def test_menu_button_set_on_start(settings, mocks):
     assert body["web_app"]["url"].startswith("https://app.test")
 
 
+async def test_bot_profile_set_on_start(settings, mocks):
+    """Команды и описания выставляются при старте; совпадающее описание повторно не меняется."""
+    import json
+
+    import httpx
+
+    from app import texts
+    from app.main import create_app
+
+    def respond(request):
+        if request.url.path.endswith("/getMyDescription"):
+            return httpx.Response(
+                200, json={"ok": True, "result": {"description": texts.BOT_DESCRIPTION}}
+            )
+        if request.url.path.endswith("/getMyShortDescription"):
+            return httpx.Response(200, json={"ok": True, "result": {"short_description": "старое"}})
+        return httpx.Response(200, json={"ok": True, "result": True})
+
+    mocks["tg"].side_effect = respond
+    s = settings.model_copy(update={"TG_SET_MENU_BUTTON": True})
+    app = create_app(s, retry_pause=0)
+    async with app.router.lifespan_context(app):
+        await app.state.menu_task
+    sent = {
+        c.request.url.path.rsplit("/", 1)[1]: json.loads(c.request.content)
+        for c in mocks["tg"].calls
+    }
+    assert [c["command"] for c in sent["setMyCommands"]["commands"]] == ["start", "news"]
+    assert sent["setMyShortDescription"] == {"short_description": texts.BOT_SHORT_DESCRIPTION}
+    assert "setMyDescription" not in sent
+    assert len(texts.BOT_SHORT_DESCRIPTION) <= 120 and len(texts.BOT_DESCRIPTION) <= 512
+
+
 async def test_admin_lockout_after_failures(client):
     """10 неудачных входов с одного адреса — блокировка (429), даже с верным паролем."""
     hdr = {"X-Real-IP": "203.0.113.7"}
