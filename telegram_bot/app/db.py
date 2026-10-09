@@ -154,6 +154,18 @@ def init_db(engine: Engine, db_file: Path) -> None:
             conn.exec_driver_sql(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
 
+def cleanup_backups(db_file: Path, retention_days: int, now: datetime | None = None) -> int:
+    """Резервные копии миграции (*.db.bak-v0) содержат ПДн: удаляются через срок хранения."""
+    now_ts = (now or datetime.now()).timestamp()
+    removed = 0
+    for backup in db_file.parent.glob(db_file.name + ".bak-*"):
+        if now_ts - backup.stat().st_mtime > retention_days * 86400:
+            backup.unlink(missing_ok=True)
+            removed += 1
+            logger.info("Удалена резервная копия БД старше срока хранения: {}", backup.name)
+    return removed
+
+
 def mark_processed(session: Session, key: str) -> bool:
     """True — событие новое и отмечено; False — уже обрабатывалось (идемпотентность, R6)."""
     if session.scalar(select(ProcessedEvent).where(ProcessedEvent.key == key)):

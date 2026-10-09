@@ -17,7 +17,7 @@ from sqlalchemy import select
 
 from . import broadcasts, metrics
 from .config import Settings, load_settings
-from .db import init_db, make_engine, make_session_factory, now_msk, session_scope
+from .db import cleanup_backups, init_db, make_engine, make_session_factory, now_msk, session_scope
 from .logging import mask_pii, setup_logging
 from .messenger import MaxMessenger
 from .models import STATUS_ACTIVE, Appointment
@@ -32,6 +32,18 @@ from .reminders import (
     set_runtime,
 )
 from .routes import admin, admin_api, broadcasts_api, health, internal, media, webapp, webhook
+
+# Всем ответам. Форму записи открывают Telegram и MAX, в том числе их веб-версии во фрейме.
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Strict-Transport-Security": "max-age=31536000",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+}
+FRAME_POLICY = (
+    "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org "
+    "https://web.max.ru https://*.max.ru"
+)
 
 ADMIN_HEADERS = {
     "Cache-Control": "no-store",
@@ -96,6 +108,7 @@ def create_app(
         register_retention(scheduler)
         with session_scope(session_factory) as session:
             run_retention(session, settings.PD_RETENTION_DAYS, now_msk())
+        cleanup_backups(settings.db_file, settings.PD_RETENTION_DAYS)
         with session_scope(session_factory) as session:
             active = list(
                 session.scalars(select(Appointment).where(Appointment.status == STATUS_ACTIVE))
@@ -131,12 +144,16 @@ def create_app(
         return JSONResponse(body, status_code=exc.status_code, headers=exc.headers)
 
     @app.middleware("http")
-    async def admin_headers(request: Request, call_next):
+    async def security_headers(request: Request, call_next):
         response = await call_next(request)
         path = request.url.path
+        for key, value in SECURITY_HEADERS.items():
+            response.headers.setdefault(key, value)
         if "/admin" in path and not path.endswith("/webhook"):
             for key, value in ADMIN_HEADERS.items():
-                response.headers.setdefault(key, value)
+                response.headers[key] = value
+        else:
+            response.headers.setdefault("Content-Security-Policy", FRAME_POLICY)
         return response
 
     @app.exception_handler(Exception)

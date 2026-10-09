@@ -1,0 +1,18 @@
+# Обновления зависимостей (аудит 09.10.2026, п.11): раз в неделю PR с новыми версиями.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /telegram_bot
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+  - package-ecosystem: pip
+    directory: /max_bot
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+  - package-ecosystem: npm
+    directory: /webapp
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }

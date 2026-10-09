@@ -78,3 +78,46 @@ async def test_menu_button_set_on_start(settings, mocks):
     body = json.loads(calls[0].request.content)["menu_button"]
     assert body["type"] == "web_app" and body["text"] == "Записаться"
     assert body["web_app"]["url"].startswith("https://app.test")
+
+
+async def test_admin_lockout_after_failures(client):
+    """10 неудачных входов с одного адреса — блокировка (429), даже с верным паролем."""
+    hdr = {"X-Real-IP": "203.0.113.7"}
+    for _ in range(10):
+        r = await client.get("/admin", auth=("admin", "wrong"), headers=hdr)
+        assert r.status_code == 401
+    r = await client.get("/admin", auth=("admin", "admin-pass"), headers=hdr)
+    assert r.status_code == 429 and int(r.headers["retry-after"]) > 0
+    # Другой адрес не затронут.
+    other = await client.get(
+        "/admin", auth=("admin", "admin-pass"), headers={"X-Real-IP": "198.51.100.1"}
+    )
+    assert other.status_code == 200
+
+
+async def test_security_headers(client):
+    r = await client.get("/healthz")
+    assert r.headers["x-content-type-options"] == "nosniff"
+    assert "max-age" in r.headers["strict-transport-security"]
+    assert "https://web.telegram.org" in r.headers["content-security-policy"]
+    a = await client.get("/admin", auth=("admin", "admin-pass"))
+    assert (
+        a.headers["x-frame-options"] == "DENY"
+        and "frame-ancestors 'none'" in a.headers["content-security-policy"]
+    )
+
+
+def test_backup_cleanup(tmp_path):
+    import os
+    import time
+
+    from app.db import cleanup_backups
+
+    db = tmp_path / "bot.db"
+    old, fresh = tmp_path / "bot.db.bak-v0", tmp_path / "bot.db.bak-v1"
+    old.write_text("x")
+    fresh.write_text("x")
+    long_ago = time.time() - 40 * 86400
+    os.utime(old, (long_ago, long_ago))
+    assert cleanup_backups(db, 30) == 1
+    assert not old.exists() and fresh.exists()

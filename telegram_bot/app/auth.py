@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import ipaddress
 import json
 import secrets
 import time
@@ -97,8 +98,49 @@ def require_tg_webhook_secret(
 _basic = HTTPBasic()
 
 
+# Защита от подбора пароля (аудит 09.10.2026): после LOGIN_MAX_FAILS неудач за LOGIN_WINDOW
+# секунд адрес блокируется на LOGIN_BLOCK секунд. Состояние — в памяти процесса.
+LOGIN_MAX_FAILS = 10
+LOGIN_WINDOW = 15 * 60
+LOGIN_BLOCK = 15 * 60
+
+
+def client_ip(request: Request) -> str:
+    """Адрес клиента. За NGINX Proxy Manager прямой адрес — прокси, настоящий — в X-Real-IP."""
+    peer = request.client.host if request.client else "?"
+    try:
+        trusted = ipaddress.ip_address(peer).is_private or ipaddress.ip_address(peer).is_loopback
+    except ValueError:
+        trusted = False
+    if trusted:
+        forwarded = request.headers.get("X-Real-IP") or request.headers.get("X-Forwarded-For", "")
+        forwarded = forwarded.split(",")[0].strip()
+        if forwarded:
+            return forwarded
+    return peer
+
+
+def _login_state(request: Request) -> dict:
+    state = getattr(request.app.state, "login_failures", None)
+    if state is None:
+        state = {}
+        request.app.state.login_failures = state
+    return state
+
+
 def require_admin(request: Request, credentials: HTTPBasicCredentials = Depends(_basic)) -> str:
     settings = request.app.state.settings
+    ip = client_ip(request)
+    failures = _login_state(request)
+    now = time.monotonic()
+    entry = failures.get(ip)
+    if entry and entry.get("blocked_until", 0) > now:
+        retry = int(entry["blocked_until"] - now) + 1
+        raise HTTPException(
+            status_code=429,
+            detail={"error": "TOO_MANY_ATTEMPTS"},
+            headers={"Retry-After": str(retry)},
+        )
     ok_user = secrets.compare_digest(
         credentials.username.encode(), settings.ADMIN_USERNAME.encode()
     )
@@ -106,13 +148,22 @@ def require_admin(request: Request, credentials: HTTPBasicCredentials = Depends(
         credentials.password.encode(), settings.ADMIN_PASSWORD.encode()
     )
     if not (ok_user and ok_pass):
-        client = request.client.host if request.client else "?"
-        logger.warning("Неудачный вход в админку с {}", client)
+        if not entry or now - entry["first"] > LOGIN_WINDOW:
+            entry = {"first": now, "count": 0}
+        entry["count"] += 1
+        if entry["count"] >= LOGIN_MAX_FAILS:
+            entry["blocked_until"] = now + LOGIN_BLOCK
+            logger.warning(
+                "Админка: {} заблокирован на 15 минут после {} неудачных входов", ip, entry["count"]
+            )
+        failures[ip] = entry
+        logger.warning("Неудачный вход в админку с {}", ip)
         raise HTTPException(
             status_code=401,
             detail="Неверный логин или пароль",
             headers={"WWW-Authenticate": "Basic"},
         )
+    failures.pop(ip, None)
     return credentials.username
 
 

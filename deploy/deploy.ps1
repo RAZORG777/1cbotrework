@@ -3,6 +3,8 @@
   Выкладка: git pull → сборка WebApp → зависимости → перезапуск служб → проверка /healthz.
 .EXAMPLE
   .\deploy\deploy.ps1 -NssmPath C:\tools\nssm.exe
+.EXAMPLE
+  .\deploy\deploy.ps1      # боты в заданиях планировщика (deploy\windows\install-tasks.ps1)
 #>
 param(
     [string]$NssmPath = "nssm.exe",
@@ -13,6 +15,7 @@ param(
 )
 $ErrorActionPreference = "Stop"
 Set-Location $RepoRoot
+Import-Module (Join-Path $PSScriptRoot "windows\bots.psm1") -Force
 
 $bots = @(
     @{ Name = "yasno-telegram-bot"; Dir = "telegram_bot"; Health = "http://127.0.0.1:8001/healthz" },
@@ -48,7 +51,14 @@ foreach ($bot in $bots) {
     & $py -m pip install --disable-pip-version-check -q -r (Join-Path $RepoRoot "$($bot.Dir)\requirements.txt")
     if ($LASTEXITCODE -ne 0) { throw "pip install завершился с ошибкой" }
     Write-Host "[$($bot.Name)] перезапуск"
-    & $NssmPath restart $bot.Name | Out-Null
+    if (Get-ScheduledTask -TaskName $bot.Name -ErrorAction SilentlyContinue) {
+        # Задание планировщика (deploy\windows\install-tasks.ps1): run-bot.ps1 сам поднимет
+        # бота через 5 с после остановки процесса.
+        Stop-BotProcess (Join-Path $RepoRoot $bot.Dir)
+        if ((Get-ScheduledTask -TaskName $bot.Name).State -ne "Running") { Start-ScheduledTask -TaskName $bot.Name }
+    } else {
+        & $NssmPath restart $bot.Name | Out-Null
+    }
 }
 
 $failed = @()

@@ -12,7 +12,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from . import keyboards, texts
-from .db import MSK, now_msk, session_scope
+from .db import MSK, cleanup_backups, now_msk, session_scope
 from .models import (
     STATUS_ACTIVE,
     STATUS_CANCELLED,
@@ -50,6 +50,7 @@ async def retention_job() -> None:
         return
     with session_scope(factory) as session:
         run_retention(session, settings.PD_RETENTION_DAYS, now_msk())
+    cleanup_backups(settings.db_file, settings.PD_RETENTION_DAYS)
 
 
 def make_scheduler(db_url: str) -> AsyncIOScheduler:
