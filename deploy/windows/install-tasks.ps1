@@ -4,6 +4,10 @@
   (аудит 09.10.2026, п.7). Замена службам NSSM. Запускать в PowerShell от администратора.
 .EXAMPLE
   .\deploy\windows\install-tasks.ps1 -CreateUser
+  # отдельная учётка yasno-bots без прав администратора (рекомендуется)
+.EXAMPLE
+  .\deploy\windows\install-tasks.ps1 -User $env:USERNAME
+  # под текущей учётной записью
 .NOTES
   Боты работают и без входа в Windows, переживают перезагрузку, после сбоя поднимаются через 5 с.
 #>
@@ -32,7 +36,7 @@ foreach ($bot in $Bots) {
 
 # Python должен быть установлен для всех пользователей, иначе учётке ботов он недоступен.
 $base = & (Join-Path $RepoRoot "telegram_bot\.venv\Scripts\python.exe") -c "import sys; print(sys.base_prefix)"
-if ($base -like "*\Users\*") {
+if ($base -like "*\Users\*" -and $User -ne $env:USERNAME) {
     throw "Python установлен в профиль пользователя ($base). Установите Python для всех пользователей (Install for all users, C:\Program Files) и пересоздайте .venv в обоих ботах."
 }
 
