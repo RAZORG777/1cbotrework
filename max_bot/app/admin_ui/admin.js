@@ -77,6 +77,7 @@ function describeError(e) {
     ADMIN_HEADER_REQUIRED: "Запрос отклонён защитой",
     NOT_ADMIN_RECIPIENT: "Получатель не из ADMIN_IDS",
     SEND_FAILED: "Мессенджер не принял сообщение — подробности в журнале",
+    NO_ADMINS: "Не заданы ADMIN_IDS — сводку некому отправить",
   };
   return known[code] || (code ? String(code) : "Ошибка HTTP " + e.status);
 }
@@ -230,6 +231,100 @@ async function loadOverview() {
 }
 loaders.overview = () => loadOverview();
 
+/* ---------- Статистика (specs/008-daily-report-funnel) ---------- */
+
+const MONTHS_GEN = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+const WEEKDAYS_SHORT = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
+const pct = (a, b) => (b ? Math.round((a * 100) / b) : 0);
+
+const statsView = {
+  days: 7,
+
+  init() {
+    try { this.days = Number(localStorage.getItem("admin-stats-days")) || 7; } catch { /* без хранилища */ }
+    $$("#stats-period button").forEach((b) => b.addEventListener("click", () => {
+      this.days = Number(b.dataset.days);
+      try { localStorage.setItem("admin-stats-days", String(this.days)); } catch { /* без хранилища */ }
+      this.load();
+    }));
+    $("#stats-refresh").addEventListener("click", () => this.load());
+    $("#stats-send").addEventListener("click", (e) => this.send(e.currentTarget));
+  },
+
+  async load() {
+    $$("#stats-period button").forEach((b) => b.setAttribute("aria-pressed", String(Number(b.dataset.days) === this.days)));
+    try {
+      this.render(await api("/stats", { params: { days: this.days } }));
+    } catch (e) {
+      $("#stats-days").innerHTML = `<tr><td class="empty">${esc(describeError(e))}</td></tr>`;
+    }
+  },
+
+  render(d) {
+    const t = d.totals;
+    const period = this.days === 1 ? "сегодня" : `за ${this.days} дн.`;
+    const tiles = [
+      ["Новых записей", t.booked, period],
+      ["Переносов", t.rescheduled, period],
+      ["Отмен", t.cancelled_patient + t.cancelled_clinic, `пациенты ${t.cancelled_patient}, клиника ${t.cancelled_clinic}`],
+      ["Подтвердили визит", t.confirmed, period],
+      ["Пришли на приём", t.visited, period],
+      ["Новых пользователей", t.new_users, period],
+    ];
+    $("#stats-tiles").innerHTML = tiles.map(([label, value, sub]) =>
+      `<div class="card tile"><div class="label">${esc(label)}</div><div class="value">${esc(value)}</div><div class="sub">${esc(sub)}</div></div>`).join("");
+    this.renderFunnel(d.funnel);
+    const report = [
+      ["Время отправки", d.report_time ? `${d.report_time} по Москве` : "выключена (DAILY_REPORT_TIME пусто)"],
+      ["Получатели", d.admins ? `администраторы из ADMIN_IDS: ${d.admins}` : "ADMIN_IDS не заданы"],
+      ["Записей на завтра", d.tomorrow],
+    ];
+    $("#stats-report").innerHTML = report.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join("");
+    $("#stats-send").disabled = !d.admins;
+    const cols = d.events;
+    const head = `<tr><th>День</th>${cols.map((c) => `<th class="num">${esc(c.title)}</th>`).join("")}</tr>`;
+    $("#stats-days").innerHTML = head + d.days.map((row) => {
+      const date = new Date(row.day + "T12:00:00");
+      const label = `${WEEKDAYS_SHORT[date.getDay()]}, ${date.getDate()} ${MONTHS_GEN[date.getMonth()]}`;
+      return `<tr><td class="nowrap day">${esc(label)}</td>${cols.map((c) => `<td class="num ${row[c.name] ? "" : "zero"}" data-label="${esc(c.title)}">${esc(row[c.name])}</td>`).join("")}</tr>`;
+    }).join("");
+  },
+
+  renderFunnel(steps) {
+    const first = steps[0].count;
+    // Самый большой отток между соседними шагами — подсветить.
+    let worst = -1, worstLoss = 0;
+    steps.forEach((s, i) => {
+      if (i === 0) return;
+      const loss = steps[i - 1].count - s.count;
+      if (loss > worstLoss) { worstLoss = loss; worst = i; }
+    });
+    $("#stats-funnel").innerHTML = steps.map((s, i) => {
+      const prev = i ? steps[i - 1].count : 0;
+      const drop = i && prev ? `−${pct(prev - s.count, prev)}% к предыдущему шагу` : i ? "" : "100%";
+      const cls = ["funnel-row", i === worst ? "worst" : "", i === steps.length - 1 ? "last" : ""].join(" ");
+      return `<div class="${cls}">
+        <div class="funnel-label">${esc(s.title)}<span class="drop">${esc(drop)}</span></div>
+        <div class="funnel-track"><div class="funnel-bar" data-w="${first ? Math.max(pct(s.count, first), s.count ? 1 : 0) : 0}"></div></div>
+        <div class="funnel-count">${esc(s.count)}<small>${first ? pct(s.count, first) + "%" : "—"}</small></div>
+      </div>`;
+    }).join("");
+    // Ширина через CSSOM: политика безопасности админки запрещает атрибут style в разметке.
+    $$("#stats-funnel .funnel-bar").forEach((el) => { el.style.width = el.dataset.w + "%"; });
+    $("#stats-funnel-note").textContent = first
+      ? (worst > 0 ? `Больше всего уходят на шаге «${steps[worst].title}»: −${worstLoss} чел.` : "")
+      : "Пока никто не открывал форму за этот период.";
+  },
+
+  async send(button) {
+    await withBusy(button, async () => {
+      const r = await api("/stats/report", { method: "POST" });
+      toast(`Сводка отправлена, доставлено: ${r.sent}`);
+    });
+  },
+};
+loaders.stats = () => statsView.load();
+
 /* ---------- Журнал ---------- */
 
 const logs = {
@@ -361,7 +456,7 @@ loaders.logs = () => logs.loadFiles();
 
 /* ---------- Задания ---------- */
 
-const JOB_KINDS = { reminder_24h: "Напоминание за сутки", reminder_2h: "Напоминание за 2 ч", feedback: "Просьба об отзыве", retention: "Очистка ПДн", other: "Другое" };
+const JOB_KINDS = { reminder_24h: "Напоминание за сутки", reminder_2h: "Напоминание за 2 ч", feedback: "Просьба об отзыве", retention: "Очистка ПДн", daily_report: "Ежедневная сводка", other: "Другое" };
 
 async function loadJobs() {
   const table = $("#jobs");
@@ -631,6 +726,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#onec-method").addEventListener("change", syncOnecFields);
   $("#onec-form").addEventListener("submit", runOnec);
   syncOnecFields();
+  statsView.init();
   bc.init();
   showTab(location.hash.slice(1) || "overview");
   if (currentTab !== "overview") loadOverview();

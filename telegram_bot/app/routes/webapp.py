@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
@@ -11,7 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from .. import keyboards, metrics, subscribers, texts
+from .. import keyboards, metrics, stats, subscribers, texts
 from ..auth import WebAppUser, current_user
 from ..config import BASE_DIR
 from ..db import now_msk, session_scope
@@ -253,6 +254,19 @@ async def schedule(
 # --- Запись пациента ---
 
 
+class TrackRequest(BaseModel):
+    step: Literal[stats.CLIENT_STEPS]  # type: ignore[valid-type]
+
+
+@router.post("/track")
+async def track(
+    req: TrackRequest, request: Request, user: WebAppUser = Depends(current_user)
+) -> dict:
+    """Шаг воронки из формы (specs/008-daily-report-funnel): один раз на пользователя за день."""
+    stats.record_step(request.app.state.session_factory, user.id, req.step)
+    return {"status": "ok"}
+
+
 @router.get("/my_appointment")
 async def my_appointment(request: Request, user: WebAppUser = Depends(current_user)) -> dict:
     with session_scope(request.app.state.session_factory) as session:
@@ -286,6 +300,7 @@ async def book(
     if not req.pd_consent:
         return consent_required()
     state = request.app.state
+    stats.record_step(state.session_factory, user.id, "submit")
     with session_scope(state.session_factory) as session:
         if active_for(session, user.id):
             return {"status": "error", "error": "SECOND_BOOKING_ERROR"}
@@ -314,6 +329,8 @@ async def book(
     schedule_reminders(state.scheduler, appt, now)
     logger.info("Записан: user_id={} appointment_id={}", user.id, appointment_id)
     metrics.inc("bookings")
+    stats.record(state.session_factory, "booked")
+    stats.record_step(state.session_factory, user.id, "booked")
     with session_scope(state.session_factory) as session:
         subscribers.touch(session, user.id)
     log_patient_result(response, appointment_id)
@@ -359,6 +376,7 @@ async def reschedule(
 
     new_id = str(response.get("appointment_id") or old_id)
     metrics.inc("reschedules")
+    stats.record(state.session_factory, "rescheduled")
     log_patient_result(response, new_id)
     now = now_msk()
     with session_scope(state.session_factory) as session:
@@ -419,6 +437,7 @@ async def cancel_for_user(state, user_id: str) -> JSONResponse | dict:
     remove_reminders(state.scheduler, appointment_id)
     logger.info("Отменена пациентом: user_id={} appointment_id={}", user_id, appointment_id)
     metrics.inc("cancellations")
+    stats.record(state.session_factory, "cancelled_patient")
     return {"status": "success", "appointment_id": appointment_id, "visit": visit}
 
 

@@ -22,15 +22,17 @@ from loguru import logger
 from pydantic import BaseModel
 from sqlalchemy import func, or_, select
 
-from .. import admin_tools, metrics
+from .. import admin_tools, metrics, stats
 from ..auth import require_admin, require_admin_action
 from ..db import MSK, SCHEMA_VERSION, now_msk, session_scope
 from ..logging import current_level, level_no, log_records, set_level, tail
 from ..models import STATUS_ACTIVE, STATUS_CANCELLED, STATUS_FINISHED, Appointment
 from ..reminders import (
+    DAILY_REPORT_JOB,
     remove_reminders,
     run_retention,
     schedule_reminders,
+    send_daily_report,
     send_reminder,
 )
 
@@ -192,6 +194,8 @@ def _job_kind(job_id: str) -> tuple[str, str | None]:
             return kind, job_id[len(prefix) :]
     if job_id == "retention_cleanup":
         return "retention", None
+    if job_id == DAILY_REPORT_JOB:
+        return "daily_report", None
     return "other", None
 
 
@@ -452,6 +456,34 @@ async def webhook_register(request: Request, admin: str = Depends(require_admin_
         ok, detail = False, type(exc).__name__
     _audit(admin, "регистрация вебхука: {}", "успешно" if ok else detail)
     return {"ok": ok, "detail": detail}
+
+
+# --- Статистика (specs/008-daily-report-funnel) ---------------------------------------------
+
+
+@router.get("/stats")
+async def stats_view(request: Request, days: int = 7, admin: str = Depends(require_admin)) -> dict:
+    if not 1 <= days <= stats.KEEP_DAYS:
+        raise HTTPException(status_code=422, detail={"error": "BAD_PARAMS"})
+    state = request.app.state
+    with session_scope(state.session_factory) as session:
+        data = stats.collect(session, days)
+        data["tomorrow"] = stats.visits_on(session, now_msk().date() + timedelta(days=1))
+    data["report_time"] = state.settings.DAILY_REPORT_TIME
+    data["admins"] = len(state.settings.admin_ids)
+    return data
+
+
+@router.post("/stats/report")
+async def stats_report(request: Request, admin: str = Depends(require_admin_action)) -> dict:
+    state = request.app.state
+    if not state.settings.admin_ids:
+        raise HTTPException(status_code=409, detail={"error": "NO_ADMINS"})
+    sent = await send_daily_report(state.messenger, state.session_factory, state.settings)
+    _audit(admin, "сводка за день отправлена вручную, доставлено {}", sent)
+    if not sent:
+        raise HTTPException(status_code=502, detail={"error": "SEND_FAILED"})
+    return {"status": "ok", "sent": sent}
 
 
 @router.post("/maintenance/retention")

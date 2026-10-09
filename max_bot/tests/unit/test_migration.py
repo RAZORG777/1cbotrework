@@ -62,7 +62,7 @@ def test_migration_v0_to_v1(tmp_path):
 
     assert (tmp_path / "appointments.db.bak-v0").exists()
     con = sqlite3.connect(db)
-    assert con.execute("PRAGMA user_version").fetchone()[0] == 3
+    assert con.execute("PRAGMA user_version").fetchone()[0] == 4
     assert con.execute("SELECT count(*) FROM apscheduler_jobs").fetchone()[0] == 0
     con.close()
 
@@ -88,7 +88,7 @@ def test_new_db_gets_version(tmp_path):
     engine = make_engine(db)
     init_db(engine, db)
     con = sqlite3.connect(db)
-    assert con.execute("PRAGMA user_version").fetchone()[0] == 3
+    assert con.execute("PRAGMA user_version").fetchone()[0] == 4
 
 
 V1_SCHEMA = """
@@ -116,7 +116,7 @@ def test_migration_v1_to_v2(tmp_path):
     con = sqlite3.connect(db)
     columns = {r[1] for r in con.execute("PRAGMA table_info(appointments)")}
     assert "confirmed_at" in columns
-    assert con.execute("PRAGMA user_version").fetchone()[0] == 3
+    assert con.execute("PRAGMA user_version").fetchone()[0] == 4
     row = con.execute("SELECT appointment_id, confirmed_at FROM appointments").fetchone()
     assert row == ("appt-v1", None)
     con.close()

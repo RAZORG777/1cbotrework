@@ -9,6 +9,7 @@ from loguru import logger
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from . import stats as daily_stats
 from .db import now_msk
 from .models import Subscriber
 
@@ -21,6 +22,7 @@ def touch(session: Session, user_id: str) -> Subscriber:
         sub = Subscriber(user_id=user_id, first_seen_at=now, last_seen_at=now)
         session.add(sub)
         session.flush()
+        daily_stats.add(session, "new_users")
         logger.info("Новый пользователь бота: user_id={}", user_id)
     else:
         sub.last_seen_at = now

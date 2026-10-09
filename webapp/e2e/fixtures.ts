@@ -83,6 +83,8 @@ export class FakeBot {
         }
         return json(200, { status: 'success', appointment_id: id })
       }
+      case 'track':
+        return json(200, { status: 'ok' })
       case 'cancel':
         if (!this.active) return json(404, { status: 'error', error: 'NOT_FOUND' })
         this.active = null
@@ -187,7 +189,7 @@ export const test = base.extend<{ ctx: Ctx; scheme: 'light' | 'dark' }>({
     await page.addInitScript(sdkStub, { platform: platformName, scheme })
     // SDK из интернета не грузим: заглушка уже на месте.
     await page.route(/telegram\.org|st\.max\.ru/, (r) => r.fulfill({ status: 200, contentType: 'text/javascript', body: '' }))
-    await page.route(/\/(max\/)?(config|doctors|services|schedule|my_appointment|book|reschedule|cancel)(\?|$)/, (r) => bot.handle(r))
+    await page.route(/\/(max\/)?(config|doctors|services|schedule|my_appointment|book|reschedule|cancel|track)(\?|$)/, (r) => bot.handle(r))
     const ctx: Ctx = {
       bot,
       platformName,

@@ -7,7 +7,7 @@ from loguru import logger
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from .. import keyboards, metrics, texts
+from .. import keyboards, metrics, stats, texts
 from ..auth import require_onec_secret
 from ..db import mark_processed, now_msk, session_scope
 from ..doctors_enricher import find_prodoctorov_url
@@ -70,6 +70,7 @@ async def cancel_visit(signal: Signal, request: Request, background: BackgroundT
             "Сигнал 1С cancel-visit на отмену пациента: appointment_id={}", signal.appointment_id
         )
         return {"status": "success"}
+    stats.record(state.session_factory, "cancelled_clinic")
     background.add_task(
         state.messenger.send_message,
         chat_id,
@@ -99,6 +100,7 @@ async def finish_visit(signal: Signal, request: Request) -> dict:
             return {"status": "success"}
         appt.status = STATUS_FINISHED
         appt.closed_at = now
+        stats.add(session, "visited")
         text = feedback_text(appt)
         review = keyboards.review(review_link(appt))
         chat_id = appt.user_id

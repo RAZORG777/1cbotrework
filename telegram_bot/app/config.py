@@ -52,6 +52,8 @@ class Settings(BaseSettings):
 
     # Хранение и служебное
     PD_RETENTION_DAYS: int = Field(30, ge=1)
+    # Ежедневная сводка администраторам (ЧЧ:ММ МСК), пусто — не отправлять.
+    DAILY_REPORT_TIME: str = Field("20:00", pattern=r"^(|([01]\d|2[0-3]):[0-5]\d)$")
     DB_PATH: str = "appointments.db"
     LOG_DIR: str = "logs"
     HOST: str = "127.0.0.1"

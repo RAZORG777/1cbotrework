@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from loguru import logger
 from sqlalchemy import select
 
-from . import texts
+from . import stats, texts
 from .db import now_msk, session_scope
 from .models import STATUS_CANCELLED, Appointment
 from .onec_client import OneCError
@@ -67,6 +67,7 @@ async def confirm_visit(state, user_id: str, appointment_id: str | None) -> Outc
             current = active_for(session, user_id)
             if current is not None and current.confirmed_at is None:
                 current.confirmed_at = now_msk()
+                stats.add(session, "confirmed")
         if response.get("already"):
             return Outcome(texts.already_confirmed(appt), texts.NOTICE_ALREADY, True, "already")
         return Outcome(texts.confirmed(appt), texts.NOTICE_CONFIRMED, True, "confirmed")

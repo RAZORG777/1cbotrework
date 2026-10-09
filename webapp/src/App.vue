@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, watch, type Component } from 'vue'
-import { api } from '@/api/client'
+import { api, type FunnelStep } from '@/api/client'
 import AppHeader from '@/components/AppHeader.vue'
 import EyeLoader from '@/components/EyeLoader.vue'
 import MainAction from '@/components/MainAction.vue'
@@ -64,6 +64,14 @@ loadThemePref().catch(() => undefined)
 // --- Кнопки мессенджера ---
 watch(mainButton, (mb) => p.setMainButton(mb ? mb.state : null, mb ? mb.onClick : null), { immediate: true })
 watch(canBack, (v) => p.setBackButton(v, v ? back : null), { immediate: true })
+
+// Воронка записи (specs/008-daily-report-funnel): экран, до которого дошёл пациент. Только новая
+// запись — перенос и «Моя запись» не считаются.
+const FUNNEL: Partial<Record<Screen, FunnelStep>> = { home: 'open', choose: 'branch', time: 'doctor', patient: 'time' }
+watch(screen, (s) => {
+  const step = FUNNEL[s]
+  if (step && booking.mode === 'book' && booking.dir === 'fwd') api.track(step)
+})
 
 // Новый экран — наверх страницы.
 watch(screen, async () => {

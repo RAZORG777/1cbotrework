@@ -121,3 +121,23 @@ class BroadcastRecipient(Base):
     state: Mapped[str] = mapped_column(
         String, default="pending"
     )  # pending | sent | failed | blocked
+
+
+class DailyStat(Base):
+    """Счётчик за день (specs/008-daily-report-funnel): события и шаги воронки, без ПДн."""
+
+    __tablename__ = "daily_stats"
+
+    day: Mapped[str] = mapped_column(String, primary_key=True)  # YYYY-MM-DD, МСК
+    name: Mapped[str] = mapped_column(String, primary_key=True)
+    value: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class FunnelMark(Base):
+    """Пользователь прошёл шаг воронки сегодня (хэш id). Удаляется на следующий день."""
+
+    __tablename__ = "funnel_marks"
+
+    day: Mapped[str] = mapped_column(String, primary_key=True)
+    step: Mapped[str] = mapped_column(String, primary_key=True)
+    uid: Mapped[str] = mapped_column(String, primary_key=True)

@@ -81,7 +81,7 @@ async def test_overview_counts_and_counters(client):
     assert o["bot"] == "telegram" and o["appointments"]["active"] == 1
     assert o["counters"]["bookings"] == 1 and o["counters"]["messages_sent"] >= 1
     assert o["jobs"]["total"] >= 3  # 2 напоминания + ночная очистка
-    assert o["db"]["schema"] == 3 and o["log_level"] == "INFO"
+    assert o["db"]["schema"] == 4 and o["log_level"] == "INFO"
 
 
 async def test_health_checks(client, mocks):

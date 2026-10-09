@@ -11,7 +11,7 @@ from loguru import logger
 from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
-from . import keyboards, texts
+from . import keyboards, stats, texts
 from .db import MSK, cleanup_backups, now_msk, session_scope
 from .models import (
     STATUS_ACTIVE,
@@ -23,6 +23,8 @@ from .models import (
 )
 
 REMINDER_PREFIXES = ("rem24h_", "rem2h_")
+REPORT_TITLE = "MAX"
+DAILY_REPORT_JOB = "daily_report"
 FEEDBACK_DELAY = timedelta(minutes=20)
 PROCESSED_EVENTS_TTL = timedelta(days=7)
 
@@ -167,6 +169,7 @@ def run_retention(session: Session, retention_days: int, now: datetime) -> dict:
     users = session.execute(
         delete(Subscriber).where(Subscriber.blocked_at < now - timedelta(days=retention_days))
     ).rowcount
+    stats.cleanup(session, now)  # отметки воронки прошлых дней, итоги старше 400 дней
     if finished or deleted or events or users:
         logger.info(
             "Очистка: завершено {}, удалено записей {}, событий {}, пользователей {}",
@@ -176,6 +179,48 @@ def run_retention(session: Session, retention_days: int, now: datetime) -> dict:
             users,
         )
     return {"finished": finished, "deleted": deleted, "events": events, "users": users}
+
+
+async def send_daily_report(messenger, factory, settings) -> int:
+    """Сводка за сегодня всем администраторам (specs/008-daily-report-funnel). Возвращает число
+    доставленных сообщений."""
+    with session_scope(factory) as session:
+        text = stats.report_text(session, REPORT_TITLE)
+    sent = 0
+    for admin_id in sorted(settings.admin_ids):
+        if await messenger.send_message(admin_id, text):
+            sent += 1
+    logger.info("Сводка за день: доставлено администраторам {}", sent)
+    return sent
+
+
+async def daily_report_job() -> None:
+    messenger = _runtime.get("messenger")
+    factory = _runtime.get("session_factory")
+    settings = _runtime.get("settings")
+    if messenger is None or factory is None or settings is None:
+        return
+    await send_daily_report(messenger, factory, settings)
+
+
+def register_daily_report(scheduler: AsyncIOScheduler, report_time: str) -> None:
+    if not report_time:
+        try:
+            scheduler.remove_job(DAILY_REPORT_JOB)
+        except JobLookupError:
+            pass
+        return
+    hour, minute = (int(x) for x in report_time.split(":"))
+    scheduler.add_job(
+        daily_report_job,
+        "cron",
+        hour=hour,
+        minute=minute,
+        id=DAILY_REPORT_JOB,
+        replace_existing=True,
+        misfire_grace_time=1800,
+        coalesce=True,
+    )
 
 
 def register_retention(scheduler: AsyncIOScheduler) -> None:

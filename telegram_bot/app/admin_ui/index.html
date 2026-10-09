@@ -33,6 +33,7 @@
 
   <nav class="tabs" role="tablist" aria-label="Разделы">
     <button role="tab" data-tab="overview" aria-selected="true">Обзор</button>
+    <button role="tab" data-tab="stats">Статистика</button>
     <button role="tab" data-tab="logs">Журнал</button>
     <button role="tab" data-tab="jobs">Задания</button>
     <button role="tab" data-tab="appointments">Записи</button>
@@ -64,6 +65,39 @@
           <table class="kv" id="process"></table>
         </div>
       </div>
+    </section>
+
+    <!-- Статистика (specs/008-daily-report-funnel) -->
+    <section id="tab-stats" class="tab-panel" role="tabpanel" hidden>
+      <div class="section-head">
+        <h1>Статистика</h1>
+        <div class="row gap">
+          <div class="seg" role="group" aria-label="Период" id="stats-period">
+            <button type="button" data-days="1">Сегодня</button>
+            <button type="button" data-days="7" aria-pressed="true">7 дней</button>
+            <button type="button" data-days="30">30 дней</button>
+            <button type="button" data-days="90">90 дней</button>
+          </div>
+          <button type="button" class="btn" id="stats-refresh">Обновить</button>
+        </div>
+      </div>
+      <div class="grid tiles" id="stats-tiles"></div>
+      <div class="grid two">
+        <div class="card">
+          <div class="row between"><h2>Воронка формы записи</h2><span class="muted small">уникальные пользователи по дням</span></div>
+          <div class="funnel" id="stats-funnel"></div>
+          <p class="muted small" id="stats-funnel-note"></p>
+        </div>
+        <div class="card">
+          <h2>Ежедневная сводка</h2>
+          <table class="kv" id="stats-report"></table>
+          <div class="row gap wrap card-actions">
+            <button type="button" class="btn primary" id="stats-send">Отправить сводку сейчас</button>
+            <span class="muted small">сводка за сегодня на текущий момент</span>
+          </div>
+        </div>
+      </div>
+      <div class="card flush"><div class="table-wrap"><table class="data" id="stats-days"></table></div></div>
     </section>
 
     <!-- Журнал -->

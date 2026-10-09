@@ -384,4 +384,4 @@ def test_migration_v3_seeds_from_appointments(tmp_path):
     with session_scope(factory) as s:
         assert s.get(Subscriber, "555") is not None
     with engine.connect() as conn:
-        assert conn.exec_driver_sql("PRAGMA user_version").scalar() == 3
+        assert conn.exec_driver_sql("PRAGMA user_version").scalar() == 4

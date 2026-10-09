@@ -27,6 +27,7 @@ from .patient import BAD_BIRTH_DATE, BAD_PHONE
 from .patient import MESSAGES as PATIENT_MESSAGES
 from .reminders import (
     make_scheduler,
+    register_daily_report,
     register_retention,
     run_retention,
     schedule_reminders,
@@ -117,6 +118,7 @@ def create_app(
         )
         scheduler.start()
         register_retention(scheduler)
+        register_daily_report(scheduler, settings.DAILY_REPORT_TIME)
         with session_scope(session_factory) as session:
             run_retention(session, settings.PD_RETENTION_DAYS, now_msk())
         cleanup_backups(settings.db_file, settings.PD_RETENTION_DAYS)

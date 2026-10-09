@@ -90,4 +90,10 @@ export const api = {
   reschedule: async (p: BookingPayload) =>
     result(await request<ResultResponse>('reschedule', { method: 'POST', body: JSON.stringify(p) })),
   cancel: async () => result(await request<ResultResponse>('cancel', { method: 'POST', body: '{}' })),
+  /** Шаг воронки (specs/008-daily-report-funnel): без ожидания и без ошибок для пациента. */
+  track: (step: FunnelStep) => {
+    request('track', { method: 'POST', body: JSON.stringify({ step }) }).catch(() => undefined)
+  },
 }
+
+export type FunnelStep = 'open' | 'branch' | 'doctor' | 'time'
