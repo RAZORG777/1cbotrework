@@ -70,7 +70,7 @@ jobs:
           npm run e2e
       - name: Скриншоты экранов
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: webapp-screenshots
           path: webapp/e2e/screenshots/
