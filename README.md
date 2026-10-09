@@ -123,6 +123,8 @@ Settings → Branches → Branch protection для `main` обязательну
 - **Автозапуск** без NSSM: `deploy\windows\install-tasks.ps1 -CreateUser` создаёт учётку
   `yasno-bots` без прав администратора и задания планировщика. Боты стартуют вместе с сервером
   и поднимаются после сбоя. Остановка — `deploy\windows\stop-bots.ps1`, обновление — `deploy\deploy.ps1`.
+  Проверка и диагностика — `deploy\windows\check-tasks.ps1 -Start` (состояние заданий, причина
+  ошибки из журнала планировщика, хвост runner.log, ответ /healthz).
 - **Админка** блокирует адрес на 15 минут после 10 неудачных входов.
 - **Резервные копии** `*.db.bak-*` удаляются автоматически через `PD_RETENTION_DAYS`.
 - **Cloudflare:** `tg-webhook-yasno` принимает только адреса Telegram
