@@ -41,7 +41,8 @@ export default defineConfig(({ mode }) => {
       target: 'es2020',
       assetsInlineLimit: 0,
     },
-    preview: { port: target === 'max' ? 4174 : 4173, strictPort: true },
+    // Явный IPv4: на раннерах GitHub «localhost» резолвится в ::1, и Playwright не видел сервер.
+    preview: { host: '127.0.0.1', port: target === 'max' ? 4174 : 4173, strictPort: true },
     test: {
       environment: 'node',
       include: ['src/**/*.test.ts'],

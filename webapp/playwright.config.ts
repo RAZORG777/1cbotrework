@@ -21,7 +21,7 @@ export default defineConfig({
     { name: 'max', use: { baseURL: 'http://127.0.0.1:4174/max/' }, metadata: { platform: 'max' } },
   ],
   webServer: [
-    { command: 'npm run preview:telegram', url: 'http://127.0.0.1:4173/', reuseExistingServer: !process.env.CI },
-    { command: 'npm run preview:max', url: 'http://127.0.0.1:4174/max/', reuseExistingServer: !process.env.CI },
+    { command: 'npm run preview:telegram', url: 'http://127.0.0.1:4173/', reuseExistingServer: !process.env.CI, timeout: 120_000 },
+    { command: 'npm run preview:max', url: 'http://127.0.0.1:4174/max/', reuseExistingServer: !process.env.CI, timeout: 120_000 },
   ],
 })
