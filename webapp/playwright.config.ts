@@ -7,7 +7,8 @@ export default defineConfig({
   testDir: './e2e',
   timeout: 30_000,
   fullyParallel: true,
-  reporter: [['list']],
+  // В CI — ещё и аннотации GitHub: причина падения видна прямо в проверке PR.
+  reporter: process.env.CI ? [['list'], ['github']] : [['list']],
   use: {
     ...devices['Pixel 7'],
     viewport: { width: 390, height: 844 },
