@@ -179,7 +179,7 @@ const branchName = computed(() => branchInfo(booking.branch).name)
       <Field v-model="booking.patient.last_name" label="Фамилия" autocomplete="family-name" :maxlength="100" :error="booking.errors.last_name" @update:model-value="clearError('last_name')" />
       <Field v-model="booking.patient.first_name" label="Имя" autocomplete="given-name" :maxlength="100" :error="booking.errors.first_name" @update:model-value="clearError('first_name')" />
       <Field v-model="booking.patient.middle_name" label="Отчество, если есть" autocomplete="additional-name" :maxlength="100" :error="booking.errors.middle_name" @update:model-value="clearError('middle_name')" />
-      <div class="grid grid-cols-1 gap-4 min-[360px]:grid-cols-2 min-[360px]:gap-3">
+      <div class="grid grid-cols-1 gap-4 min-[380px]:grid-cols-[132px_minmax(0,1fr)] min-[380px]:gap-3">
         <Field
           v-model="booking.patient.birth_date"
           label="Дата рождения"
