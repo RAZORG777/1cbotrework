@@ -64,4 +64,5 @@ webapp/test-results/
 webapp/playwright-report/
 
 # Картинки рассылок (specs/007-broadcasts)
-*/media/
+telegram_bot/media/
+max_bot/media/
