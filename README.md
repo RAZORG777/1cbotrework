@@ -67,24 +67,7 @@
 
 ## Как это устроено
 
-```mermaid
-flowchart LR
-    U(["Пациент"]) --> TG["Telegram"]
-    U --> MX["MAX"]
-    TG -- "вебхук" --> CF["Cloudflare Worker<br/>посредник"]
-    CF --> NPM["HTTPS-прокси<br/>NGINX Proxy Manager"]
-    MX -- "вебхук" --> NPM
-    subgraph S["Сервер клиники"]
-        direction TB
-        TB["Telegram-бот<br/>FastAPI · форма Vue 3 · SQLite"]
-        MB["MAX-бот<br/>FastAPI · форма Vue 3 · SQLite"]
-        ONEC[("1С: БИТ.УМЦ<br/>HTTP-сервис")]
-        TB <-- "запись ⇄ сигналы" --> ONEC
-        MB <-- "запись ⇄ сигналы" --> ONEC
-    end
-    NPM --> TB
-    NPM --> MB
-```
+![Схема: пациент → Telegram или MAX → посредник Cloudflare → HTTPS-прокси → боты на сервере клиники ⇄ 1С](docs/media/architecture.png)
 
 | Слой | Технологии |
 |------|------------|
