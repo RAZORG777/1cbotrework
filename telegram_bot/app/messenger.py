@@ -35,6 +35,11 @@ class TelegramMessenger:
                 data = response.json()
                 if response.status_code == 200 and data.get("ok"):
                     return data
+                description = str(data.get("description") or "")
+                if method == "answerCallbackQuery" and "query is too old" in description:
+                    # Нажатие устарело: пользователь уже не видит подсказку, итог придёт сообщением.
+                    logger.warning("Telegram {}: нажатие устарело, подсказка не показана", method)
+                    return None
                 logger.error(
                     "Telegram {}: HTTP {} {}", method, response.status_code, data.get("description")
                 )

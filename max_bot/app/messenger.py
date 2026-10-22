@@ -78,11 +78,11 @@ class MaxMessenger:
 
     async def answer_callback(
         self, callback_id: str, notification: str | None = None, message: dict | None = None
-    ) -> None:
+    ) -> bool:
         """Ответ на нажатие; `message` заменяет исходное сообщение (этап 2: убрать кнопки)."""
         payload: dict[str, Any] = {}
         if notification:
             payload["notification"] = notification
         if message is not None:
             payload["message"] = message
-        await self._post("/answers", {"callback_id": callback_id}, payload)
+        return await self._post("/answers", {"callback_id": callback_id}, payload)

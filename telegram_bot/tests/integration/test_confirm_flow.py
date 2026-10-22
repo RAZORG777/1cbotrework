@@ -159,3 +159,48 @@ async def test_admin_send_reminder(client, mocks):
     )
     assert r.json() == {"status": "ok"}
     assert tg_calls(mocks, "sendMessage")[-1]["reply_markup"]["inline_keyboard"]
+
+
+async def test_slow_onec_answers_press_first(client, app, mocks, monkeypatch):
+    """1С отвечает дольше, чем Telegram ждёт ответа на нажатие: сначала гасим «часики»."""
+    import asyncio
+
+    import httpx
+
+    from app.routes import webhook
+
+    async def slow_confirm(request):
+        await asyncio.sleep(0.2)
+        return httpx.Response(200, json={"status": "success", "appointment_id": "appt-1"})
+
+    monkeypatch.setattr(webhook, "CALLBACK_GRACE", 0.05)
+    await client.post("/book", json=booking(), headers=auth(7))
+    mocks["confirm"].side_effect = slow_confirm
+    await client.post("/admin/webhook", json=press("c:appt-1"), headers=HDR)
+    answered = tg_calls(mocks, "answerCallbackQuery")
+    assert len(answered) == 1 and "text" not in answered[0]
+    assert tg_calls(mocks, "sendMessage")[-1]["text"].startswith("Спасибо, ждём вас")
+    assert appt(app, "appt-1").confirmed_at is not None
+
+
+async def test_stale_press_is_not_an_error(client, app, mocks):
+    """«query is too old» — предупреждение, итог всё равно приходит сообщением."""
+    import httpx
+
+    def reply(request):
+        if request.url.path.endswith("/answerCallbackQuery"):
+            return httpx.Response(
+                400,
+                json={
+                    "ok": False,
+                    "description": "Bad Request: query is too old and response timeout "
+                    "expired or query ID is invalid",
+                },
+            )
+        return httpx.Response(200, json={"ok": True, "result": {}})
+
+    mocks["tg"].side_effect = reply
+    await client.post("/book", json=booking(), headers=auth(7))
+    await client.post("/admin/webhook", json=press("c:appt-1"), headers=HDR)
+    assert tg_calls(mocks, "sendMessage")[-1]["text"].startswith("Спасибо, ждём вас")
+    assert appt(app, "appt-1").confirmed_at is not None

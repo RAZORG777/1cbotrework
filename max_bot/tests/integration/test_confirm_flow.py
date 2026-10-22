@@ -112,3 +112,13 @@ async def test_admin_send_reminder(client, mocks):
     assert r.json() == {"status": "ok"}
     body = json.loads(mocks["msg"].calls.last.request.content)
     assert body["attachments"][0]["type"] == "inline_keyboard"
+
+
+async def test_failed_answer_falls_back_to_message(client, app, mocks):
+    """Ответ на нажатие не прошёл — итог всё равно приходит отдельным сообщением."""
+    await client.post("/max/book", json=booking(), headers=auth(5))
+    mocks["answers"].respond(400, json={"code": "callback.expired", "message": "expired"})
+    await client.post("/max/webhook", json=press("confirm:appt-1"), headers=HDR)
+    text = json.loads(mocks["msg"].calls.last.request.content)["text"]
+    assert text.startswith("Спасибо, ждём вас")
+    assert appt(app, "appt-1").confirmed_at is not None

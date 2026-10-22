@@ -102,9 +102,12 @@ async def handle_callback(state, update: dict) -> None:
     if outcome.remove_buttons:
         original = ((update.get("message") or {}).get("body") or {}).get("text") or ""
         text = f"{original}\n\n{outcome.text}" if original else outcome.text
-        await state.messenger.answer_callback(
+        replaced = await state.messenger.answer_callback(
             callback_id, outcome.notice, {"text": text, "format": "html", "attachments": []}
         )
+        if not replaced:
+            # Ответ на нажатие не прошёл (например, устарел) — итог всё равно доходит до пациента.
+            await state.messenger.send_message(user_id, outcome.text)
     else:
         await state.messenger.answer_callback(callback_id, outcome.notice)
         await state.messenger.send_message(user_id, outcome.text)

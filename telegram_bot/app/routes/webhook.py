@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Depends, Request
 from loguru import logger
 from sqlalchemy import func, select
@@ -13,6 +15,10 @@ from ..models import STATUS_ACTIVE, Appointment
 from ..visit_actions import handle_button, parse_callback
 
 router = APIRouter()
+
+# Telegram ждёт ответа на нажатие недолго; если 1С отвечает дольше, нажатие подтверждается
+# сразу (без всплывающей подсказки), а итог приходит сообщением.
+CALLBACK_GRACE = 3.0
 
 
 NEWS_ANSWERS = {
@@ -53,8 +59,13 @@ async def handle_callback(state, query: dict) -> None:
         await state.messenger.answer_callback(query_id)
         return
     action, appointment_id = parsed
-    outcome = await handle_button(state, user_id, action, appointment_id)
-    await state.messenger.answer_callback(query_id, outcome.notice)
+    task = asyncio.create_task(handle_button(state, user_id, action, appointment_id))
+    done, _ = await asyncio.wait({task}, timeout=CALLBACK_GRACE)
+    if not done:
+        await state.messenger.answer_callback(query_id)
+    outcome = await task
+    if done:
+        await state.messenger.answer_callback(query_id, outcome.notice)
     message = query.get("message") or {}
     chat_id = str((message.get("chat") or {}).get("id") or user_id)
     if outcome.remove_buttons and message.get("message_id") is not None:
