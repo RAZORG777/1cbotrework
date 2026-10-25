@@ -4,7 +4,7 @@ httpx==0.28.1
 SQLAlchemy==2.1.0
 APScheduler==3.11.3
 tzlocal==5.4.4
-tzdata==2026.4
+tzdata==2026.5
 loguru==0.7.3
 pydantic==2.13.5
 pydantic-settings==2.15.0
