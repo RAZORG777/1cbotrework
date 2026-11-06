@@ -221,10 +221,10 @@ export const test = base.extend<{ ctx: Ctx; scheme: 'light' | 'dark' }>({
 
 export { expect }
 
-export async function fillPatient(page: Page) {
+export async function fillPatient(page: Page, birth = '14031961') {
   await page.getByLabel('Фамилия').fill('Смирнова')
   await page.getByLabel('Имя', { exact: true }).fill('Ольга')
-  await page.getByLabel('Дата рождения').pressSequentially('14031961')
+  await page.getByLabel('Дата рождения').pressSequentially(birth)
   await page.getByLabel('Телефон').pressSequentially('9161342331')
 }
 

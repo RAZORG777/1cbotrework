@@ -12,6 +12,7 @@ export type ErrorKind =
   | 'consent'
   | 'not_found'
   | 'blocked'
+  | 'guardian'
   | 'general'
 
 /** Реакция формы на код ответа (contracts/webapp-api.md › Коды ошибок). */
@@ -35,6 +36,8 @@ export function classify(e: unknown): ErrorKind {
       return 'not_found'
     case 'BOOKING_BLOCKED':
       return 'blocked'
+    case 'GUARDIAN_ACK_REQUIRED':
+      return 'guardian'
     default:
       return 'general'
   }

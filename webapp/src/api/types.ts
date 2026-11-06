@@ -59,6 +59,7 @@ export interface BookingPayload {
   patient?: PatientPayload
   send_notifications: boolean
   pd_consent: boolean
+  guardian_ack?: boolean
   old_appointment_id?: string
 }
 

@@ -53,6 +53,8 @@ export const booking = reactive({
   remember: true,
   notify: true,
   consent: false,
+  /** Ознакомлен с условиями приёма ребёнка до 18 лет. */
+  guardianAck: false,
   errors: {} as FieldErrors,
 
   result: null as BookedResult | null,

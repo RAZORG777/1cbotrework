@@ -266,6 +266,7 @@ RETRY_LATER = (
     f"или позвоните: {CLINIC_PHONE}."
 )
 ALREADY_CANCELLED = "Эта запись уже отменена."
+GUARDIAN_ACK_REQUIRED = "Подтвердите, что ознакомились с условиями приёма ребёнка."
 BOOKING_BLOCKED = (
     f"Онлайн-запись для вас сейчас недоступна. Записаться можно по телефону {CLINIC_PHONE}."
 )

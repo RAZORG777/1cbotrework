@@ -20,7 +20,7 @@ from ..doctors_enricher import enrich_doctors_data
 from ..models import STATUS_ACTIVE, STATUS_CANCELLED, STATUS_FINISHED, Appointment
 from ..onec_client import OneCError
 from ..patient import MESSAGES as PATIENT_MESSAGES
-from ..patient import normalize_birth_date, normalize_phone
+from ..patient import is_minor, normalize_birth_date, normalize_phone
 from ..reminders import remove_reminders, schedule_reminders
 
 router = APIRouter()
@@ -58,6 +58,8 @@ class BookingRequest(BaseModel):
     patient: Patient
     send_notifications: bool = True
     pd_consent: bool = False
+    # Ознакомлен с условиями приёма ребёнка до 18 лет (specs/010-child-visit-notice).
+    guardian_ack: bool = False
     old_appointment_id: str | None = None
 
 
@@ -178,6 +180,10 @@ def fill(appt: Appointment, req: BookingRequest, appointment_id: str) -> None:
         appt.birth_date = req.patient.birth_date
         appt.notify = req.send_notifications
     appt.confirmed_at = None  # перенос: подтверждать заново (этап 2)
+
+
+def guardian_ack_required() -> JSONResponse:
+    return error("GUARDIAN_ACK_REQUIRED", texts.GUARDIAN_ACK_REQUIRED, 422)
 
 
 def consent_required() -> JSONResponse:
@@ -302,6 +308,9 @@ async def book(
 ):
     if not req.pd_consent:
         return consent_required()
+    minor = is_minor(req.patient.birth_date, req.date)
+    if minor and not req.guardian_ack:
+        return guardian_ack_required()
     state = request.app.state
     with session_scope(state.session_factory) as session:
         blocked = bans.is_banned(session, user.id)
@@ -313,7 +322,14 @@ async def book(
         if active_for(session, user.id):
             return {"status": "error", "error": "SECOND_BOOKING_ERROR"}
 
-    logger.info("Запись: user_id={} врач={} {} {}", user.id, req.doctor_id, req.date, req.time)
+    logger.info(
+        "Запись: user_id={} врач={} {} {}{}",
+        user.id,
+        req.doctor_id,
+        req.date,
+        req.time,
+        " (ребёнок, условия приёма подтверждены)" if minor else "",
+    )
     try:
         response = await state.onec.create_booking(onec_payload(req))
     except OneCError:

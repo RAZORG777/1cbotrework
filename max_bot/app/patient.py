@@ -49,3 +49,17 @@ def normalize_birth_date(value: str, today: date | None = None) -> str:
     if parsed < MIN_BIRTH_DATE or parsed > (today or date.today()):
         raise ValueError(BAD_BIRTH_DATE)
     return parsed.isoformat()
+
+
+ADULT_AGE = 18
+
+
+def is_minor(birth_iso: str, visit_iso: str) -> bool:
+    """Пациенту на день приёма меньше 18 лет (specs/010-child-visit-notice)."""
+    try:
+        born = date.fromisoformat(birth_iso)
+        visit = date.fromisoformat(visit_iso)
+    except ValueError:
+        return False
+    age = visit.year - born.year - ((visit.month, visit.day) < (born.month, born.day))
+    return age < ADULT_AGE

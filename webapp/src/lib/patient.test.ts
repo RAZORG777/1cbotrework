@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { birthDateError, cleanPatient, formatBirthDate, formatPhone, MESSAGES, phoneDigits, pluralFields, validatePatient } from './patient'
+import { birthDateError, cleanPatient, formatBirthDate, formatPhone, isMinorOn, MESSAGES, phoneDigits, pluralFields, validatePatient } from './patient'
 
 const today = new Date(2026, 8, 29)
 const ok = { last_name: 'Смирнова', first_name: 'Ольга', middle_name: '', birth_date: '14.03.1961', phone: '+7 (916) 134-23-31' }
@@ -53,5 +53,19 @@ describe('форма пациента', () => {
   })
   it('склонение', () => {
     expect([1, 2, 5, 11, 22].map(pluralFields)).toEqual(['1 поле', '2 поля', '5 полей', '11 полей', '22 поля'])
+  })
+})
+
+describe('приём ребёнка до 18 лет', () => {
+  it('возраст считается на день приёма', () => {
+    expect(isMinorOn('10.01.2012', '2030-01-10')).toBe(false)
+    expect(isMinorOn('11.01.2012', '2030-01-10')).toBe(true)
+    expect(isMinorOn('15.03.2020', '2026-11-20')).toBe(true)
+    expect(isMinorOn('14.03.1961', '2026-11-20')).toBe(false)
+  })
+  it('неполная или неверная дата — не ребёнок', () => {
+    expect(isMinorOn('15.03.20', '2026-11-20')).toBe(false)
+    expect(isMinorOn('31.02.2020', '2026-11-20')).toBe(false)
+    expect(isMinorOn('15.03.2020', '')).toBe(false)
   })
 })

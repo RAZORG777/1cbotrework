@@ -8,7 +8,7 @@ export interface PatientFields {
   phone: string
 }
 
-export type FieldErrors = Partial<Record<keyof PatientFields | 'consent', string>>
+export type FieldErrors = Partial<Record<keyof PatientFields | 'consent' | 'guardian', string>>
 
 export const MESSAGES = {
   required: 'Заполните поле',
@@ -19,6 +19,7 @@ export const MESSAGES = {
   birthOld: 'Проверьте год рождения',
   phone: 'Нужно 10 цифр после +7',
   consent: 'Без согласия запись невозможна',
+  guardian: 'Отметьте, что ознакомились с условиями приёма ребёнка',
 } as const
 
 const NAME = /^[A-Za-zА-Яа-яЁё]+(?:[ '\-][A-Za-zА-Яа-яЁё]+)*$/
@@ -67,6 +68,18 @@ export function birthDateError(value: string, today = new Date()): string | null
   const end = new Date(today.getFullYear(), today.getMonth(), today.getDate())
   if (date > end) return MESSAGES.birthFuture
   return null
+}
+
+/** Пациенту на день приёма меньше 18 лет: дата рождения ДД.ММ.ГГГГ, визит ГГГГ-ММ-ДД. */
+export function isMinorOn(birth: string, visit: string): boolean {
+  if (birthDateError(birth) !== null) return false
+  const b = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(birth.trim())
+  const v = /^(\d{4})-(\d{2})-(\d{2})$/.exec(visit)
+  if (!b || !v) return false
+  const [bd, bm, by] = [Number(b[1]), Number(b[2]), Number(b[3])]
+  const [vy, vm, vd] = [Number(v[1]), Number(v[2]), Number(v[3])]
+  const age = vy - by - (vm < bm || (vm === bm && vd < bd) ? 1 : 0)
+  return age < 18
 }
 
 function nameError(value: string, required: boolean): string | null {

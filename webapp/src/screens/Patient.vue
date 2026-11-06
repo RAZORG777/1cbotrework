@@ -4,12 +4,13 @@ import { computed, nextTick, ref } from 'vue'
 import { api } from '@/api/client'
 import Banner from '@/components/Banner.vue'
 import CheckRow from '@/components/CheckRow.vue'
+import ChildNotice from '@/components/ChildNotice.vue'
 import Field from '@/components/Field.vue'
 import StepProgress from '@/components/StepProgress.vue'
 import { branchInfo } from '@/lib/branches'
 import { BLOCKED_MESSAGE, CLINIC_PHONE, CLINIC_PHONE_HREF, classify, GENERAL_MESSAGE } from '@/lib/errors'
 import { shortDate, shortName } from '@/lib/format'
-import { cleanPatient, formatBirthDate, formatPhone, MESSAGES, pluralFields, validatePatient } from '@/lib/patient'
+import { cleanPatient, formatBirthDate, formatPhone, isMinorOn, MESSAGES, pluralFields, validatePatient } from '@/lib/patient'
 import { platform } from '@/platform'
 import { backTo, booking, emptyPatient, root, slotKey } from '@/state/booking'
 import { patientByKey, patients, savePatient } from '@/state/patients'
@@ -32,6 +33,7 @@ function choose(key: string) {
   platform().haptic('select')
   booking.profileKey = key
   booking.errors = {}
+  booking.guardianAck = false
   showSummary.value = false
   const saved = key === NEW ? undefined : patientByKey(key)
   booking.patient = saved
@@ -43,6 +45,7 @@ function choose(key: string) {
 if (!booking.patient.first_name && !booking.patient.last_name && patientByKey(booking.profileKey)) choose(booking.profileKey)
 
 const errorCount = computed(() => Object.keys(booking.errors).length)
+const minor = computed(() => isMinorOn(booking.patient.birth_date, booking.date))
 
 function clearError(k: keyof typeof booking.errors) {
   if (booking.errors[k]) {
@@ -62,6 +65,7 @@ async function submit() {
   if (sending.value) return
   generalError.value = ''
   booking.errors = validatePatient(booking.patient, booking.consent)
+  if (minor.value && !booking.guardianAck) booking.errors = { ...booking.errors, guardian: MESSAGES.guardian }
   showSummary.value = errorCount.value > 0
   if (errorCount.value) {
     platform().haptic('error')
@@ -84,6 +88,7 @@ async function submit() {
       patient,
       send_notifications: booking.notify,
       pd_consent: booking.consent,
+      guardian_ack: minor.value && booking.guardianAck,
     })
     platform().haptic('success')
     if (booking.remember) {
@@ -120,6 +125,10 @@ async function submit() {
     } else if (kind === 'consent') {
       booking.errors = { ...booking.errors, consent: MESSAGES.consent }
       showSummary.value = true
+    } else if (kind === 'guardian') {
+      booking.errors = { ...booking.errors, guardian: MESSAGES.guardian }
+      showSummary.value = true
+      await focusFirstError()
     } else if (kind === 'blocked') {
       booking.blocked = true
       generalError.value = BLOCKED_MESSAGE
@@ -205,6 +214,7 @@ const branchName = computed(() => branchInfo(booking.branch).name)
           @update:model-value="clearError('phone')"
         />
       </div>
+      <ChildNotice v-if="minor" v-model="booking.guardianAck" :error="booking.errors.guardian" @change="clearError('guardian')" />
       <CheckRow v-model="booking.remember">Запомнить данные на этом устройстве для следующих записей</CheckRow>
       <CheckRow v-model="booking.notify">Напоминать о визите в этом чате</CheckRow>
       <CheckRow v-model="booking.consent" :error="booking.errors.consent" @update:model-value="clearError('consent')">
