@@ -35,6 +35,8 @@ export interface ActiveAppointment {
 export interface MyAppointmentResponse {
   status: string
   has_appointment: boolean
+  /** Администратор запретил онлайн-запись (specs/009-booking-ban). */
+  booking_blocked?: boolean
   data?: ActiveAppointment
 }
 

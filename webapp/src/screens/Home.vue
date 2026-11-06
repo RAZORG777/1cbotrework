@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { PhMapPin } from '@phosphor-icons/vue'
+import { PhMapPin, PhPhoneCall } from '@phosphor-icons/vue'
 import logo from '@/assets/logo.png'
 import StepProgress from '@/components/StepProgress.vue'
 import ThemeSwitch from '@/components/ThemeSwitch.vue'
@@ -25,13 +25,30 @@ function pick(b: BranchInfo) {
       <img :src="logo" alt="Ясно Вижу, офтальмологическая клиника" width="76" height="76" class="h-16 w-16 shrink-0 rounded-full bg-[#fbfcfc] min-[360px]:h-[76px] min-[360px]:w-[76px]" />
       <div class="flex min-w-0 flex-col gap-1.5">
         <h1 class="m-0 text-2xl min-[360px]:text-[27px] font-bold leading-[1.15] tracking-[-0.01em]">Запись к&nbsp;офтальмологу</h1>
-        <p class="m-0 text-base text-muted">Врача, услугу и время подберём дальше</p>
+        <p v-if="!booking.blocked" class="m-0 text-base text-muted">Врача, услугу и время подберём дальше</p>
       </div>
     </div>
 
-    <StepProgress :step="1" label="Филиал" />
+    <section
+      v-if="booking.blocked"
+      class="anim-rise flex flex-col gap-4 rounded-box border border-line bg-surface px-4 py-5"
+      aria-labelledby="blocked-title"
+    >
+      <div class="flex flex-col gap-1.5">
+        <h2 id="blocked-title" class="m-0 text-xl font-semibold">Онлайн-запись недоступна</h2>
+        <p class="m-0 text-base leading-snug text-muted">Записаться к&nbsp;врачу можно по&nbsp;телефону колл-центра клиники.</p>
+      </div>
+      <a
+        :href="CLINIC_PHONE_HREF"
+        class="press flex min-h-12 items-center justify-center gap-2 rounded-box bg-accent px-4 text-[17px] font-semibold text-on-accent no-underline tabular-nums"
+      >
+        <PhPhoneCall :size="22" aria-hidden="true" />{{ CLINIC_PHONE }}
+      </a>
+    </section>
 
-    <section class="flex flex-col gap-3" aria-labelledby="branches-title">
+    <StepProgress v-if="!booking.blocked" :step="1" label="Филиал" />
+
+    <section v-if="!booking.blocked" class="flex flex-col gap-3" aria-labelledby="branches-title">
       <h2 id="branches-title" class="m-0 text-xl font-semibold">Где вам удобнее?</h2>
       <button
         v-for="(b, i) in BRANCHES"
@@ -54,7 +71,7 @@ function pick(b: BranchInfo) {
 
     <div class="flex-1" />
     <ThemeSwitch />
-    <p class="m-0 text-center text-[15px] text-muted">
+    <p v-if="!booking.blocked" class="m-0 text-center text-[15px] text-muted">
       Вопросы по записи:
       <a :href="CLINIC_PHONE_HREF" class="inline-flex min-h-11 items-center font-semibold no-underline tabular-nums">{{ CLINIC_PHONE }}</a>
     </p>

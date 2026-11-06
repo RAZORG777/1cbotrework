@@ -176,6 +176,23 @@
         <div class="row gap toolbar-buttons"><button type="button" class="btn" id="appt-refresh">Найти</button></div>
       </div>
       <div class="card flush"><div class="table-wrap"><table class="data" id="appointments"></table></div></div>
+
+      <div class="section-head bans-head">
+        <h1>Запрет онлайн-записи</h1>
+        <span class="muted small">форма предложит позвонить в колл-центр; отменить уже созданную запись можно</span>
+      </div>
+      <form class="toolbar" id="ban-form" novalidate>
+        <label class="field">
+          <span>ID пользователя</span>
+          <input id="ban-user" inputmode="numeric" autocomplete="off" maxlength="21" required>
+        </label>
+        <label class="field grow">
+          <span>Причина — без ФИО и диагнозов</span>
+          <input id="ban-reason" maxlength="200" autocomplete="off" placeholder="например: 3 неявки, не выходит на связь">
+        </label>
+        <div class="row gap toolbar-buttons"><button type="submit" class="btn danger" id="ban-add">Запретить запись</button></div>
+      </form>
+      <div class="card flush"><div class="table-wrap"><table class="data" id="bans"></table></div></div>
     </section>
 
     <!-- 1С -->

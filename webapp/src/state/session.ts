@@ -10,5 +10,6 @@ export function onAccessError(kind: 'access' | 'expired'): void {
 export async function refreshActive(): Promise<boolean> {
   const r = await api.myAppointment()
   booking.active = r.has_appointment && r.data ? r.data : null
+  booking.blocked = !!r.booking_blocked
   return !!booking.active
 }

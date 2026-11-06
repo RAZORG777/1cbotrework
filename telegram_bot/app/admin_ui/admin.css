@@ -243,6 +243,7 @@ input, select {
 }
 input:focus, select:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
 .toolbar-buttons { margin-left: auto; }
+.bans-head { margin-top: 28px; }
 label.check { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; cursor: pointer; }
 label.check input { height: auto; }
 

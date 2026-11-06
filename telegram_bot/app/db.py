@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from .models import STATUS_ACTIVE, STATUS_FINISHED, Base, ProcessedEvent
 
 MSK = ZoneInfo("Europe/Moscow")
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 
 def now_msk() -> datetime:
@@ -151,6 +151,7 @@ def init_db(engine: Engine, db_file: Path) -> None:
             ).rowcount
             logger.info("Миграция БД v2 → v3: пользователей из записей {}", added)
         # v3 → v4 (specs/008-daily-report-funnel): daily_stats и funnel_marks — create_all.
+        # v4 → v5 (specs/009-booking-ban): booking_bans — create_all.
         if _user_version(conn) < SCHEMA_VERSION:
             conn.exec_driver_sql(f"PRAGMA user_version = {SCHEMA_VERSION}")
 

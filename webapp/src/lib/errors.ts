@@ -11,6 +11,7 @@ export type ErrorKind =
   | 'field'
   | 'consent'
   | 'not_found'
+  | 'blocked'
   | 'general'
 
 /** Реакция формы на код ответа (contracts/webapp-api.md › Коды ошибок). */
@@ -32,9 +33,14 @@ export function classify(e: unknown): ErrorKind {
       return 'consent'
     case 'NOT_FOUND':
       return 'not_found'
+    case 'BOOKING_BLOCKED':
+      return 'blocked'
     default:
       return 'general'
   }
 }
+
+/** Текст до номера телефона: номер добавляет баннер ссылкой. */
+export const BLOCKED_MESSAGE = 'Онлайн-запись для вас сейчас недоступна. Записаться можно по телефону'
 
 export const GENERAL_MESSAGE = 'Сервис записи временно недоступен. Попробуйте ещё раз или позвоните в клинику.'

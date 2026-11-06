@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from .. import keyboards, metrics, stats, subscribers, texts
+from .. import bans, keyboards, metrics, stats, subscribers, texts
 from ..auth import WebAppUser, current_user
 from ..config import BASE_DIR
 from ..db import now_msk, session_scope
@@ -272,11 +272,13 @@ async def track(
 async def my_appointment(request: Request, user: WebAppUser = Depends(current_user)) -> dict:
     with session_scope(request.app.state.session_factory) as session:
         appt = active_for(session, user.id)
+        blocked = bans.is_banned(session, user.id)
         if appt is None:
-            return {"status": "success", "has_appointment": False}
+            return {"status": "success", "has_appointment": False, "booking_blocked": blocked}
         return {
             "status": "success",
             "has_appointment": True,
+            "booking_blocked": blocked,
             "data": {
                 "appointment_id": appt.appointment_id,
                 "branch": appt.branch,
@@ -301,6 +303,11 @@ async def book(
     if not req.pd_consent:
         return consent_required()
     state = request.app.state
+    with session_scope(state.session_factory) as session:
+        blocked = bans.is_banned(session, user.id)
+    if blocked:
+        logger.info("Запись запрещена администратором: user_id={}", user.id)
+        return error("BOOKING_BLOCKED", texts.BOOKING_BLOCKED)
     stats.record_step(state.session_factory, user.id, "submit")
     with session_scope(state.session_factory) as session:
         if active_for(session, user.id):

@@ -43,6 +43,8 @@ export const booking = reactive({
   mode: 'book' as 'book' | 'reschedule',
 
   active: null as ActiveAppointment | null,
+  /** Онлайн-запись запрещена администратором: форма предлагает позвонить. */
+  blocked: false,
   takenSlots: [] as string[],
   slotTakenNotice: '' as string,
 

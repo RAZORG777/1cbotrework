@@ -141,3 +141,17 @@ class FunnelMark(Base):
     day: Mapped[str] = mapped_column(String, primary_key=True)
     step: Mapped[str] = mapped_column(String, primary_key=True)
     uid: Mapped[str] = mapped_column(String, primary_key=True)
+
+
+class BookingBan(Base):
+    """Запрет онлайн-записи (specs/009-booking-ban): id пользователя мессенджера и причина.
+
+    Без ФИО и телефона; снимается администратором вручную.
+    """
+
+    __tablename__ = "booking_bans"
+
+    user_id: Mapped[str] = mapped_column(String, primary_key=True)
+    reason: Mapped[str] = mapped_column(String, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime)
+    created_by: Mapped[str] = mapped_column(String, default="")

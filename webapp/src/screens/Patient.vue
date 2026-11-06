@@ -7,7 +7,7 @@ import CheckRow from '@/components/CheckRow.vue'
 import Field from '@/components/Field.vue'
 import StepProgress from '@/components/StepProgress.vue'
 import { branchInfo } from '@/lib/branches'
-import { CLINIC_PHONE, CLINIC_PHONE_HREF, classify, GENERAL_MESSAGE } from '@/lib/errors'
+import { BLOCKED_MESSAGE, CLINIC_PHONE, CLINIC_PHONE_HREF, classify, GENERAL_MESSAGE } from '@/lib/errors'
 import { shortDate, shortName } from '@/lib/format'
 import { cleanPatient, formatBirthDate, formatPhone, MESSAGES, pluralFields, validatePatient } from '@/lib/patient'
 import { platform } from '@/platform'
@@ -120,6 +120,9 @@ async function submit() {
     } else if (kind === 'consent') {
       booking.errors = { ...booking.errors, consent: MESSAGES.consent }
       showSummary.value = true
+    } else if (kind === 'blocked') {
+      booking.blocked = true
+      generalError.value = BLOCKED_MESSAGE
     } else if (kind === 'access' || kind === 'expired') onAccessError(kind)
     else generalError.value = GENERAL_MESSAGE
   } finally {

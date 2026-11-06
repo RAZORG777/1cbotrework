@@ -39,6 +39,8 @@ export class FakeBot {
   /** Код отказа на следующую запись/перенос. */
   nextBookError: { status: number; body: Record<string, unknown> } | null = null
   auth: 'ok' | 'OPEN_FROM_BOT' | 'SESSION_EXPIRED' = 'ok'
+  /** Администратор запретил онлайн-запись (specs/009-booking-ban). */
+  blocked = false
   schedule: Record<string, string[]> = {
     [dayFromToday(1)]: ['09:30', '11:00', '14:30', '15:00', '18:30'],
     [dayFromToday(3)]: ['10:00', '12:30'],
@@ -54,7 +56,9 @@ export class FakeBot {
     if (this.auth !== 'ok') return json(401, { error: this.auth })
     switch (path) {
       case 'my_appointment':
-        return json(200, this.active ? { status: 'success', has_appointment: true, data: this.active } : { status: 'success', has_appointment: false })
+        return json(200, this.active
+          ? { status: 'success', has_appointment: true, booking_blocked: this.blocked, data: this.active }
+          : { status: 'success', has_appointment: false, booking_blocked: this.blocked })
       case 'doctors':
         return json(200, DOCTORS)
       case 'services':

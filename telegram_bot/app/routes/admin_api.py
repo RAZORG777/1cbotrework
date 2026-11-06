@@ -19,10 +19,10 @@ from apscheduler.jobstores.base import JobLookupError
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from loguru import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 
-from .. import admin_tools, metrics, stats
+from .. import admin_tools, bans, metrics, stats
 from ..auth import require_admin, require_admin_action
 from ..db import MSK, SCHEMA_VERSION, now_msk, session_scope
 from ..logging import current_level, level_no, log_records, set_level, tail
@@ -255,7 +255,7 @@ async def jobs_action(
 # --- Записи --------------------------------------------------------------------------------
 
 
-def _appointment_view(appt: Appointment, job_ids: set[str]) -> dict:
+def _appointment_view(appt: Appointment, job_ids: set[str], banned: set[str]) -> dict:
     jobs = [
         f"{prefix}{appt.appointment_id}"
         for prefix in ("rem24h_", "rem2h_", "feedback_")
@@ -274,6 +274,7 @@ def _appointment_view(appt: Appointment, job_ids: set[str]) -> dict:
         "confirmed_at": _iso(appt.confirmed_at),
         "notify": bool(appt.notify),
         "jobs": jobs,
+        "banned": appt.user_id in banned,
     }
 
 
@@ -300,7 +301,8 @@ async def appointments_list(
         rows = session.scalars(
             query.order_by(Appointment.visit_at.desc()).limit(max(1, min(limit, 500)))
         ).all()
-        items = [_appointment_view(a, job_ids) for a in rows]
+        banned = bans.banned_among(session, {a.user_id for a in rows})
+        items = [_appointment_view(a, job_ids, banned) for a in rows]
     return {"items": items, "total": total or 0}
 
 
@@ -365,6 +367,37 @@ async def appointment_close(
         appt.closed_at = now_msk()
     remove_reminders(state.scheduler, appointment_id)
     _audit(admin, "запись {} закрыта локально: {}", appointment_id, body.status)
+    return {"status": "ok"}
+
+
+# --- Запрет онлайн-записи (specs/009-booking-ban) -------------------------------------------
+
+
+class BanBody(BaseModel):
+    user_id: str = Field(pattern=r"^-?\d{1,20}$")
+    reason: str = Field("", max_length=bans.REASON_MAX)
+
+
+@router.get("/bans")
+async def bans_list(request: Request, admin: str = Depends(require_admin)) -> dict:
+    with session_scope(request.app.state.session_factory) as session:
+        return {"items": bans.list_all(session)}
+
+
+@router.post("/bans")
+async def bans_add(body: BanBody, request: Request, admin: str = Depends(require_admin_action)):
+    with session_scope(request.app.state.session_factory) as session:
+        created = bans.add(session, body.user_id, body.reason.strip(), admin, now_msk())
+    _audit(admin, "запрет онлайн-записи для {}", body.user_id)
+    return {"status": "ok", "created": created}
+
+
+@router.delete("/bans/{user_id}")
+async def bans_remove(user_id: str, request: Request, admin: str = Depends(require_admin_action)):
+    with session_scope(request.app.state.session_factory) as session:
+        if not bans.remove(session, user_id):
+            raise _not_found()
+    _audit(admin, "снят запрет онлайн-записи для {}", user_id)
     return {"status": "ok"}
 
 

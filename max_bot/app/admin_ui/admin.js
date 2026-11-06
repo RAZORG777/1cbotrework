@@ -503,14 +503,16 @@ async function loadAppointments() {
     table.innerHTML = head + (data.items.length ? data.items.map((a) => {
       const [label, cls] = STATUS_BADGE[a.status] || [a.status, ""];
       const confirmed = a.confirmed_at ? `<span class="badge accent">подтверждён</span>` : "";
+      const banned = a.banned ? ` <span class="badge err">запрет записи</span>` : "";
+      const banBtn = a.banned ? "" : `<button type="button" class="btn sm danger" data-ban-user="${esc(a.user_id)}">Запретить запись</button>`;
       const actions = a.status === "active" ? `
         <button type="button" class="btn sm" data-appt="${esc(a.appointment_id)}" data-act="remind24">Напомнить (сутки)</button>
         <button type="button" class="btn sm" data-appt="${esc(a.appointment_id)}" data-act="remind2">Напомнить (2 ч)</button>
         <button type="button" class="btn sm" data-appt="${esc(a.appointment_id)}" data-act="rejobs">Пересоздать</button>
-        <button type="button" class="btn sm danger" data-appt="${esc(a.appointment_id)}" data-act="close">Закрыть локально</button>` : `<span class="muted small">закрыта ${esc(fmtTime(a.closed_at))}</span>`;
+        <button type="button" class="btn sm danger" data-appt="${esc(a.appointment_id)}" data-act="close">Закрыть локально</button>${banBtn}` : `<span class="muted small">закрыта ${esc(fmtTime(a.closed_at))}</span>${banBtn}`;
       return `<tr>
         <td class="nowrap"><strong>${esc(fmtTime(a.visit_at, true))}</strong><div class="muted small">${esc(relTime(a.visit_at))}</div></td>
-        <td><span class="badge ${cls}">${esc(label)}</span> ${confirmed}</td>
+        <td><span class="badge ${cls}">${esc(label)}</span> ${confirmed}${banned}</td>
         <td>${esc(a.branch || "—")}<div class="muted small">${esc(a.doctor_name || "—")}</div><div class="muted small">${esc(a.service_name || "")}</div></td>
         <td><code>${esc(a.appointment_id)}</code><div class="muted small"><code>${esc(a.user_id)}</code> · создана ${esc(fmtTime(a.created_at))}</div></td>
         <td>${a.notify ? (a.jobs.length ? a.jobs.map((j) => `<span class="badge">${esc(JOB_SHORT[j.split("_")[0]] || j)}</span>`).join(" ") : `<span class="muted small">нет заданий</span>`) : `<span class="badge">выключены</span>`}</td>
@@ -521,7 +523,49 @@ async function loadAppointments() {
     table.innerHTML = `<tr><td class="empty">${esc(describeError(e))}</td></tr>`;
   }
 }
-loaders.appointments = loadAppointments;
+loaders.appointments = () => { loadAppointments(); loadBans(); };
+
+/* ---------- Запрет онлайн-записи (specs/009-booking-ban) ---------- */
+
+async function loadBans() {
+  const table = $("#bans");
+  try {
+    const data = await api("/bans");
+    const head = `<tr><th>Пользователь</th><th>Причина</th><th>Записей в боте</th><th>Запрещено</th><th></th></tr>`;
+    table.innerHTML = head + (data.items.length ? data.items.map((b) => `<tr>
+        <td><a href="#appointments" data-find="${esc(b.user_id)}"><code>${esc(b.user_id)}</code></a></td>
+        <td>${esc(b.reason || "—")}</td>
+        <td>${esc(b.appointments)}</td>
+        <td class="nowrap">${esc(fmtTime(b.created_at))}<div class="muted small">${esc(b.created_by)}</div></td>
+        <td class="actions"><div class="act"><button type="button" class="btn sm" data-unban="${esc(b.user_id)}">Снять запрет</button></div></td></tr>`).join("")
+      : `<tr><td colspan="5" class="empty">Запретов нет</td></tr>`);
+  } catch (e) {
+    table.innerHTML = `<tr><td class="empty">${esc(describeError(e))}</td></tr>`;
+  }
+}
+
+async function addBan(ev) {
+  ev.preventDefault();
+  const userId = $("#ban-user").value.trim(), reason = $("#ban-reason").value.trim();
+  if (!/^-?\d{1,20}$/.test(userId)) { toast("ID пользователя — только цифры, как в колонке «пользователь» у записи.", true); $("#ban-user").focus(); return; }
+  if (!(await confirmAction("Запретить онлайн-запись?", `Пользователь ${userId} не сможет записаться через бота — форма предложит позвонить в колл-центр. Уже созданную запись он сможет отменить. Запрет снимается здесь же.`, "Запретить", true))) return;
+  await withBusy($("#ban-add"), async () => {
+    const r = await api("/bans", { method: "POST", body: { user_id: userId, reason } });
+    toast(r.created ? "Онлайн-запись запрещена" : "Причина обновлена");
+    $("#ban-user").value = ""; $("#ban-reason").value = "";
+    loadBans(); loadAppointments();
+  });
+}
+
+async function removeBan(button) {
+  const userId = button.dataset.unban;
+  if (!(await confirmAction("Снять запрет?", `Пользователь ${userId} снова сможет записываться через бота.`, "Снять"))) return;
+  await withBusy(button, async () => {
+    await api(`/bans/${encodeURIComponent(userId)}`, { method: "DELETE" });
+    toast("Запрет снят");
+    loadBans(); loadAppointments();
+  });
+}
 
 async function appointmentAction(button) {
   const id = button.dataset.appt, act = button.dataset.act;
@@ -697,6 +741,11 @@ document.addEventListener("click", (ev) => {
   if (!t) return;
   if (t.dataset.job) jobAction(t);
   else if (t.dataset.appt) appointmentAction(t);
+  else if (t.dataset.banUser) {
+    $("#ban-user").value = t.dataset.banUser;
+    $("#ban-form").scrollIntoView({ behavior: "smooth", block: "center" });
+    $("#ban-reason").focus({ preventScroll: true });
+  } else if (t.dataset.unban) removeBan(t);
   else if (t.dataset.op) runOp(t);
   else if (t.dataset.template) {
     const chat = $("#msg-recipient").value;
@@ -721,6 +770,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#overview-refresh").addEventListener("click", loadOverview);
   $("#jobs-refresh").addEventListener("click", loadJobs);
   $("#appt-refresh").addEventListener("click", loadAppointments);
+  $("#ban-form").addEventListener("submit", addBan);
   $("#appt-status").addEventListener("change", loadAppointments);
   $("#appt-q").addEventListener("keydown", (e) => { if (e.key === "Enter") loadAppointments(); });
   $("#onec-method").addEventListener("change", syncOnecFields);
